@@ -1,10 +1,11 @@
+// src/app/live/page.tsx - COMPLETE FIX
 'use client'
 
 import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
-function LiveContent()  {
+function LiveContent() {
   const searchParams = useSearchParams()
   const [meetingDetails, setMeetingDetails] = useState<any>(null)
   
@@ -17,7 +18,7 @@ function LiveContent()  {
       setMeetingDetails({
         meetingId,
         password,
-        userName
+        userName: userName || 'Guest'
       })
     }
   }, [meetingId, password, userName])
@@ -70,7 +71,7 @@ function LiveContent()  {
                   </div>
                   <div>
                     <p className="text-gray-400">Your Name</p>
-                    <p className="text-xl">{meetingDetails.userName || 'Guest'}</p>
+                    <p className="text-xl">{meetingDetails.userName}</p>
                   </div>
                 </div>
               </div>
@@ -84,7 +85,10 @@ function LiveContent()  {
                   >
                     Open in Zoom App
                   </button>
-                  <button className="w-full border border-blue-500 text-blue-500 py-3 rounded-lg">
+                  <button 
+                    onClick={() => navigator.clipboard.writeText(`https://zoom.us/j/${meetingDetails.meetingId}`)}
+                    className="w-full border border-blue-500 text-blue-500 py-3 rounded-lg"
+                  >
                     Copy Meeting Link
                   </button>
                 </div>
@@ -106,7 +110,14 @@ function LiveContent()  {
 
 export default function LivePage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center text-white">
+          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="mt-4">Loading meeting...</p>
+        </div>
+      </div>
+    }>
       <LiveContent />
     </Suspense>
   )
