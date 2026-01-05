@@ -19,13 +19,15 @@ interface ZoomMeetingProps {
   userName: string
   password?: string
   role?: number // 0 = participant, 1 = host
+  autoJoin?: boolean // NEW: Auto join when meeting starts
 }
 
 export default function ZoomMeeting({ 
   meetingNumber, 
   userName,
   password = '123456',
-  role = 1
+  role = 1,
+  autoJoin = false // NEW: Default false
 }: ZoomMeetingProps) {
   const [loading, setLoading] = useState(true)
   const [videoOn, setVideoOn] = useState(true)
@@ -173,72 +175,89 @@ export default function ZoomMeeting({
     }
   }, [])
 
-  // REAL JOIN FUNCTION
-  const joinMeeting = async () => {
-    if (!window.ZoomMtg) {
-      setError('Zoom SDK not loaded')
-      return
+  // Auto-join when zoom is ready and autoJoin is true
+  useEffect(() => {
+    if (autoJoin && zoomReady && !isJoined && !loading) {
+      console.log('Auto-joining meeting...')
+      joinMeeting()
+    }
+  }, [zoomReady, autoJoin, isJoined, loading])
+
+
+const joinMeeting = async () => {
+  console.log('=== JOIN MEETING FUNCTION STARTED ===')
+  
+  if (!window.ZoomMtg) {
+    console.error('Zoom SDK not loaded')
+    setError('Zoom SDK not loaded')
+    return
+  }
+
+  if (!meetingNumber) {
+    console.error('Meeting ID required')
+    setError('Meeting ID required')
+    return
+  }
+
+  try {
+    setLoading(true)
+    setError('')
+    console.log('1. Setting up Zoom...')
+
+    // Initialize Zoom
+    window.ZoomMtg.setZoomJSLib('https://source.zoom.us/2.18.0/lib', '/av')
+    window.ZoomMtg.preLoadWasm()
+    window.ZoomMtg.prepareWebSDK()
+    
+    console.log('2. Zoom setup done, fetching signature...')
+    
+    // Get signature from your API
+    const signatureResponse = await fetch('/api/zoom/signature', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        meetingNumber,
+        role: role.toString()
+      }),
+    })
+
+    console.log('3. Signature response status:', signatureResponse.status)
+    
+    const signatureData = await signatureResponse.json()
+    
+    if (!signatureData.success) {
+      console.error('4. Signature error:', signatureData.error)
+      throw new Error(signatureData.error || 'Failed to get signature')
     }
 
-    if (!meetingNumber) {
-      setError('Meeting ID required')
-      return
+    console.log('5. Got signature, initializing meeting...')
+
+    // Zoom config
+    const meetConfig = {
+      sdkKey: signatureData.sdkKey,
+      signature: signatureData.signature,
+      meetingNumber: meetingNumber,
+      userName: userName,
+      passWord: password,
+      leaveUrl: window.location.origin,
+      role: role
     }
 
-    try {
-      setLoading(true)
-      setError('')
+    console.log('6. Meeting config:', meetConfig)
 
-      // Initialize Zoom
-      window.ZoomMtg.setZoomJSLib('https://source.zoom.us/2.18.0/lib', '/av')
-      window.ZoomMtg.preLoadWasm()
-      window.ZoomMtg.prepareWebSDK()
-
-      // Get signature from your API
-      const signatureResponse = await fetch('/api/zoom/signature', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          meetingNumber,
-          role: role.toString()
-        }),
-      })
-
-      const signatureData = await signatureResponse.json()
-      
-      if (!signatureData.success) {
-        throw new Error(signatureData.error || 'Failed to get signature')
-      }
-
-      console.log('Got signature:', signatureData.signature?.substring(0, 50) + '...')
-
-      // Zoom config
-      const meetConfig = {
-        sdkKey: signatureData.sdkKey,
-        signature: signatureData.signature,
-        meetingNumber: meetingNumber,
-        userName: userName,
-        passWord: password,
-        leaveUrl: window.location.origin,
-        role: role
-      }
-
-      console.log('Joining meeting with config:', {
-        meetingNumber: meetConfig.meetingNumber,
-        userName: meetConfig.userName,
-        role: meetConfig.role
-      })
-
-      // Initialize
-      window.ZoomMtg.init({
-        leaveUrl: meetConfig.leaveUrl,
-        isSupportAV: true,
-        success: () => {
-          console.log('Zoom init success')
+    // IMPORTANT: Add error handler for init
+    window.ZoomMtg.init({
+      leaveUrl: meetConfig.leaveUrl,
+      isSupportAV: true,
+      success: (successResult: any) => {
+        console.log('7. Zoom init success:', successResult)
+        
+        // Add small delay before join
+        setTimeout(() => {
+          console.log('7.5. Attempting to join meeting...')
           
-          // Join meeting
           window.ZoomMtg.join({
             signature: meetConfig.signature,
             sdkKey: meetConfig.sdkKey,
@@ -248,35 +267,40 @@ export default function ZoomMeeting({
             userEmail: '',
             tk: '',
             zak: '',
-            success: () => {
-              console.log('Join meeting success')
+            success: (joinSuccess: any) => {
+              console.log('8. Join meeting SUCCESS!', joinSuccess)
               setIsJoined(true)
               setLoading(false)
               setError('')
             },
             error: (err: any) => {
-              console.error('Join error:', err)
-              setError(`Join failed: ${err.message || 'Unknown error'}`)
+              console.error('9. Join error:', err)
+              console.error('9.1. Error details:', JSON.stringify(err))
+              setError(`Join failed: ${err.message || err.reason || JSON.stringify(err)}`)
               setLoading(false)
               setIsJoined(false)
             }
           })
-        },
-        error: (err: any) => {
-          console.error('Init error:', err)
-          setError(`Init failed: ${err.message || 'Unknown error'}`)
-          setLoading(false)
-          setIsJoined(false)
-        }
-      })
+        }, 1000)
+      },
+      error: (err: any) => {
+        console.error('10. Init error:', err)
+        console.error('10.1. Error details:', JSON.stringify(err))
+        setError(`Init failed: ${err.message || err.reason || JSON.stringify(err)}`)
+        setLoading(false)
+        setIsJoined(false)
+      }
+    })
 
-    } catch (err: any) {
-      console.error('Join meeting error:', err)
-      setError(err.message || 'Failed to join meeting')
-      setLoading(false)
-      setIsJoined(false)
-    }
+  } catch (err: any) {
+    console.error('11. Catch block error:', err)
+    console.error('11.1. Error stack:', err.stack)
+    setError(err.message || 'Failed to join meeting')
+    setLoading(false)
+    setIsJoined(false)
   }
+}
+
 
   const toggleAudio = () => {
     if (!window.ZoomMtg || !isJoined) return
@@ -336,43 +360,43 @@ export default function ZoomMeeting({
       {/* Zoom Meeting Container */}
       <div id="zmmtg-root" className="w-full h-full"></div>
       
-      {/* Status Overlay */}
-      <div className={`absolute inset-0 flex flex-col items-center justify-center ${isJoined ? 'bg-transparent pointer-events-none' : 'bg-black/90'}`}>
-        {!isJoined && (
-          <div className="text-center p-8 rounded-xl bg-black/70">
-            <div className="w-40 h-40 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6">
-              <FaVideo className="h-20 w-20 text-white" />
-            </div>
-            <h3 className="text-2xl font-bold text-white mb-2">{userName}</h3>
-            <p className="text-gray-300">Meeting ID: {meetingNumber}</p>
-            <p className="text-gray-400 mt-1">Role: {role === 1 ? 'Host' : 'Participant'}</p>
-            
-            <div className="mt-6">
-              {error && (
-                <div className="bg-red-900/50 text-red-300 p-3 rounded-lg mb-4">
-                  {error}
-                </div>
-              )}
-              
-              <div className="inline-flex items-center bg-green-900/30 px-4 py-2 rounded-full mb-4">
-                <div className="w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></div>
-                <span className="text-green-400 font-medium">
-                  {zoomReady ? 'Zoom Ready' : 'Loading...'}
-                </span>
-              </div>
-              
-              {zoomReady && (
-                <button
-                  onClick={joinMeeting}
-                  className="block w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-6 rounded-lg font-bold hover:opacity-90"
-                >
-                  {role === 1 ? 'Start Meeting as Host' : 'Join Meeting'}
-                </button>
-              )}
-            </div>
+      {/* Status Overlay - Only show if NOT joined */}
+  {!isJoined && (
+  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90">
+    <div className="text-center p-8 rounded-xl bg-black/70">
+      <div className="w-40 h-40 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6">
+        <FaVideo className="h-20 w-20 text-white" />
+      </div>
+      <h3 className="text-2xl font-bold text-white mb-2">{userName}</h3>
+      <p className="text-gray-300">Meeting ID: {meetingNumber}</p>
+      <p className="text-gray-400 mt-1">Role: {role === 1 ? 'Host' : 'Participant'}</p>
+      
+      <div className="mt-6">
+        {error && (
+          <div className="bg-red-900/50 text-red-300 p-3 rounded-lg mb-4">
+            {error}
           </div>
         )}
+        
+        <div className="inline-flex items-center bg-green-900/30 px-4 py-2 rounded-full mb-4">
+          <div className="w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+          <span className="text-green-400 font-medium">
+            {zoomReady ? 'Zoom Ready' : 'Loading...'}
+          </span>
+        </div>
+        
+        {zoomReady && (
+          <button
+            onClick={joinMeeting}
+            className="block w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-6 rounded-lg font-bold hover:opacity-90"
+          >
+            Click to Join Meeting
+          </button>
+        )}
       </div>
+    </div>
+  </div>
+)}
 
       {/* Controls - Only show when joined */}
       {isJoined && (

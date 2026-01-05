@@ -35,6 +35,7 @@ export default function HostPage() {
   }
 
   const startMeeting = () => {
+    console.log('Starting meeting...')
     setMeetingStarted(true)
   }
 
@@ -50,7 +51,6 @@ export default function HostPage() {
   }
 
   const generateQRCode = () => {
-    // Simple QR code generation using Google Charts API
     const qrUrl = `https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=${encodeURIComponent(shareUrl)}&choe=UTF-8`
     window.open(qrUrl, '_blank', 'width=300,height=300')
   }
@@ -101,39 +101,53 @@ export default function HostPage() {
                   </div>
                 </div>
 
+                {/* IMPORTANT: Show START button ABOVE ZoomMeeting */}
+                {!meetingStarted && (
+                  <div className="mb-6 p-6 bg-gray-900/50 rounded-xl text-center border border-gray-700">
+                    <div className="w-20 h-20 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full flex items-center justify-center mb-4 mx-auto">
+                      <span className="text-3xl">👑</span>
+                    </div>
+                    <h3 className="text-2xl font-bold mb-3">Ready to Host</h3>
+                    <p className="text-gray-400 text-center mb-6 max-w-md mx-auto">
+                      You are the host of this meeting. Click below to start the meeting and enable video/audio.
+                    </p>
+                    <button
+                      onClick={startMeeting}
+                      className="px-10 py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg text-xl font-bold hover:opacity-90 transition hover:scale-105 active:scale-95 shadow-lg shadow-purple-900/50 w-full max-w-md"
+                    >
+                      Start Meeting as Host
+                    </button>
+                    <p className="text-sm text-gray-500 mt-4">
+                      Participants can join before you start, but won't have video/audio until you begin
+                    </p>
+                  </div>
+                )}
+
                 {/* Zoom Meeting Component */}
-                <div className="relative bg-black rounded-xl aspect-video overflow-hidden mb-6">
+                <div className="relative bg-black rounded-xl aspect-video overflow-hidden">
                   {meetingStarted ? (
                     <ZoomMeeting
                       meetingNumber={meetingId}
                       password={password}
                       userName={userName}
-                      role={1}                     
+                      role={1}
+                      autoJoin={true} // Pass this prop to auto-join
                     />
                   ) : (
-                    <div className="h-full flex flex-col items-center justify-center p-8">
-                      <div className="w-32 h-32 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full flex items-center justify-center mb-6">
-                        <span className="text-4xl">👑</span>
+                    <div className="h-full flex items-center justify-center bg-gray-900">
+                      <div className="text-center">
+                        <div className="w-32 h-32 bg-gray-800 rounded-full flex items-center justify-center mb-6 mx-auto">
+                          <span className="text-5xl">📹</span>
+                        </div>
+                        <h3 className="text-xl font-bold mb-2">Meeting Not Started</h3>
+                        <p className="text-gray-400">Click "Start Meeting as Host" above to begin</p>
                       </div>
-                      <h3 className="text-2xl font-bold mb-3">Ready to Host</h3>
-                      <p className="text-gray-400 text-center mb-6 max-w-md">
-                        You are the host of this meeting. Click below to start the meeting and enable video/audio.
-                      </p>
-                      <button
-                        onClick={startMeeting}
-                        className="px-10 py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg text-xl font-bold hover:opacity-90 transition"
-                      >
-                        Start Meeting as Host
-                      </button>
-                      <p className="text-sm text-gray-500 mt-4">
-                        Participants can join before you start, but won't have video/audio until you begin
-                      </p>
                     </div>
                   )}
                 </div>
 
                 {/* Stats */}
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-3 gap-4 mt-6">
                   <div className="bg-gray-900 p-4 rounded-lg text-center">
                     <div className="text-2xl font-bold text-blue-400">{participantCount}</div>
                     <div className="text-sm text-gray-400">Participants</div>
@@ -262,31 +276,6 @@ export default function HostPage() {
                 </p>
               </div>
             )}
-          </div>
-        </div>
-
-        {/* Instructions */}
-        <div className="mt-8 bg-gray-800/50 p-6 rounded-xl">
-          <h3 className="text-xl font-bold mb-4">Host Instructions</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-gray-900 p-4 rounded-lg">
-              <div className="text-blue-400 font-bold mb-2">1. Start Meeting</div>
-              <p className="text-gray-400 text-sm">
-                Click "Start Meeting as Host" to begin the meeting with your video and audio.
-              </p>
-            </div>
-            <div className="bg-gray-900 p-4 rounded-lg">
-              <div className="text-blue-400 font-bold mb-2">2. Share Link</div>
-              <p className="text-gray-400 text-sm">
-                Share the participant link with attendees. They can join via browser or Zoom app.
-              </p>
-            </div>
-            <div className="bg-gray-900 p-4 rounded-lg">
-              <div className="text-blue-400 font-bold mb-2">3. Manage Participants</div>
-              <p className="text-gray-400 text-sm">
-                Use host controls to manage the meeting, mute participants, record, etc.
-              </p>
-            </div>
           </div>
         </div>
       </div>

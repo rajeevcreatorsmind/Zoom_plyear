@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import * as jwt from 'jsonwebtoken'
 
 export async function POST(request: NextRequest) {
   try {
@@ -6,8 +7,8 @@ export async function POST(request: NextRequest) {
     const { meetingNumber, role = '0' } = body
     
     // Use your Zoom SDK credentials
-    const ZOOM_SDK_KEY = 'dFLvsjSbTa6wBaF1w6Evbw' // Replace with actual SDK key
-    const ZOOM_SDK_SECRET = 'nmZkj8KL0sIvo5UCPx4t09UDKvoxhsUb' // Replace with actual SDK secret
+    const ZOOM_SDK_KEY = 'a1GrwpkBRuuBBt4m14Hr8g' // Client ID
+    const ZOOM_SDK_SECRET = 'nmZkj8KL0sIvo5UCPx4t09UDKvoxhsUb' // Client Secret
     
     if (!meetingNumber) {
       return NextResponse.json({
@@ -16,16 +17,25 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Simple signature generation for testing
-    const timestamp = new Date().getTime() - 30000
-    const signature = `${ZOOM_SDK_KEY}.${meetingNumber}.${timestamp}.${role}.test_signature`
+    // Generate proper JWT signature
+    const payload = {
+      app_key: ZOOM_SDK_KEY,
+      tpc: meetingNumber,
+      role_type: parseInt(role),
+      version: 1,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 3600, // 1 hour expiration
+    }
+
+    const signature = jwt.sign(payload, ZOOM_SDK_SECRET, {
+      algorithm: 'HS256',
+    })
 
     return NextResponse.json({
       success: true,
       signature,
       sdkKey: ZOOM_SDK_KEY,
       meetingNumber,
-      timestamp,
       role
     })
 
