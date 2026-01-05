@@ -2,31 +2,30 @@ import { NextResponse } from 'next/server'
 import crypto from 'crypto'
 
 export async function POST(request: Request) {
-  try {
-    const body = await request.json()
-    const { meetingId, role = 0 } = body
+  const { meetingNumber, role } = await request.json()
 
-    // Your Zoom JWT credentials
-    const API_KEY = process.env.NEXT_PUBLIC_ZOOM_CLIENT_ID || 'dFLvsjSbTa6wBaF1w6Evbw'
-    const API_SECRET = process.env.NEXT_PUBLIC_ZOOM_CLIENT_SECRET || 'nmZkj8KL0sIvo5UCPx4t09UDKvoxhsUb'
+  const iat = Math.floor(Date.now() / 1000) - 30
+  const exp = iat + 60 * 60 * 2 // 2 hours
 
-    const timestamp = new Date().getTime() - 30000
-    const msg = Buffer.from(API_KEY + meetingId + timestamp + role).toString('base64')
-    
-    const hash = crypto.createHmac('sha256', API_SECRET).update(msg).digest('base64')
-    const signature = Buffer.from(`${API_KEY}.${meetingId}.${timestamp}.${role}.${hash}`).toString('base64')
+  const header = { alg: 'HS256', typ: 'JWT' }
 
-    return NextResponse.json({
-      signature,
-      apiKey: API_KEY,
-      meetingId,
-      role
-    })
-  } catch (error) {
-    console.error('Signature error:', error)
-    return NextResponse.json(
-      { error: 'Failed to generate signature' },
-      { status: 500 }
-    )
+  const payload = {
+    appKey: process.env.NEXT_PUBLIC_ZOOM_CLIENT_ID,
+    sdkKey: process.env.NEXT_PUBLIC_ZOOM_CLIENT_ID,
+    mn: meetingNumber,
+    role: role, // 1 for host, 0 for participant
+    iat,
+    exp,
+    tokenExp: exp
   }
+
+  const encodedHeader = Buffer.from(JSON.stringify(header)).toString('base64url')
+  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url')
+
+  const signature = crypto
+    .createHmac('sha256', process.env.NEXT_PUBLIC_ZOOM_CLIENT_SECRET!)
+    .update(`${encodedHeader}.${encodedPayload}`)
+    .digest('base64url')
+
+  return NextResponse.json({ signature: `${encodedHeader}.${encodedPayload}.${signature}` })
 }

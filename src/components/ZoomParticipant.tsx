@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { FaSpinner, FaVideo, FaVolumeUp, FaExpand, FaCopy } from 'react-icons/fa'
+import ZoomMeeting from './ZoomMeeting'  // Yeh path sahi kar lo (components folder mein hai to './ZoomMeeting')
 
 export default function ZoomParticipant({ 
   meetingId, 
@@ -17,23 +18,18 @@ export default function ZoomParticipant({
   const [meetingLink, setMeetingLink] = useState('')
 
   useEffect(() => {
-    // Generate meeting link
     if (typeof window !== 'undefined') {
       setMeetingLink(`${window.location.origin}/meeting/${meetingId}?pass=${password}`)
     }
   }, [meetingId, password])
 
-  const joinMeeting = async () => {
+  const joinMeeting = () => {
     setIsJoining(true)
-    
-    // Simulate joining process
+    // Real join – thoda delay daala loading feel ke liye (optional)
     setTimeout(() => {
       setIsJoining(false)
       setIsJoined(true)
-      
-      // In real implementation, here you would initialize Zoom Web SDK
-      // For now, we'll show a placeholder
-    }, 2000)
+    }, 1500)
   }
 
   const copyMeetingLink = () => {
@@ -60,9 +56,16 @@ export default function ZoomParticipant({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column - Video Area */}
           <div className="lg:col-span-2">
-            {/* Video Container */}
-            <div className="bg-black rounded-xl aspect-video overflow-hidden mb-6">
-              {!isJoined ? (
+            {/* Real Zoom Video Container */}
+            <div className="bg-black rounded-xl aspect-video overflow-hidden mb-6 relative">
+              {isJoined ? (
+                <ZoomMeeting
+                  meetingNumber={meetingId}
+                  password={password}
+                  userName={userName}
+                  role={0}  // Participant ke liye 0
+                />
+              ) : (
                 <div className="h-full flex flex-col items-center justify-center text-white p-8">
                   <div className="w-24 h-24 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-6">
                     <FaVideo className="h-12 w-12" />
@@ -71,24 +74,6 @@ export default function ZoomParticipant({
                   <p className="text-gray-400 text-center">
                     Click the button below to join the meeting
                   </p>
-                </div>
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center text-white p-8">
-                  <div className="w-24 h-24 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center mb-6">
-                    <FaVideo className="h-12 w-12" />
-                  </div>
-                  <h3 className="text-2xl font-bold mb-3">Meeting Joined!</h3>
-                  <p className="text-gray-400 text-center">
-                    Connected as: <span className="text-white font-semibold">{userName}</span>
-                  </p>
-                  <div className="mt-6 flex space-x-4">
-                    <button className="bg-blue-600 text-white px-6 py-3 rounded-lg flex items-center">
-                      <FaVideo className="mr-2" /> Start Video
-                    </button>
-                    <button className="bg-green-600 text-white px-6 py-3 rounded-lg flex items-center">
-                      <FaVolumeUp className="mr-2" /> Join Audio
-                    </button>
-                  </div>
                 </div>
               )}
             </div>
@@ -99,7 +84,7 @@ export default function ZoomParticipant({
                 <button
                   onClick={joinMeeting}
                   disabled={isJoining}
-                  className={`w-full max-w-md py-4 rounded-lg text-xl font-bold flex items-center justify-center ${
+                  className={`w-full max-w-md py-4 rounded-lg text-xl font-bold flex items-center justify-center transition ${
                     isJoining 
                       ? 'bg-gray-600 cursor-not-allowed' 
                       : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:opacity-90'
@@ -117,27 +102,15 @@ export default function ZoomParticipant({
               </div>
             )}
 
-            {/* Controls (When Joined) */}
+            {/* Simple Controls Info (Real controls Zoom SDK khud dega) */}
             {isJoined && (
-              <div className="bg-gray-800 p-6 rounded-xl">
-                <h3 className="text-xl font-bold text-white mb-4">Meeting Controls</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <button className="bg-gray-700 text-white p-4 rounded-lg hover:bg-gray-600">
-                    <FaVideo className="h-6 w-6 mx-auto mb-2" />
-                    <span>Video</span>
-                  </button>
-                  <button className="bg-gray-700 text-white p-4 rounded-lg hover:bg-gray-600">
-                    <FaVolumeUp className="h-6 w-6 mx-auto mb-2" />
-                    <span>Audio</span>
-                  </button>
-                  <button className="bg-gray-700 text-white p-4 rounded-lg hover:bg-gray-600">
-                    <FaExpand className="h-6 w-6 mx-auto mb-2" />
-                    <span>Fullscreen</span>
-                  </button>
-                  <button className="bg-red-600 text-white p-4 rounded-lg hover:bg-red-700">
-                    Leave
-                  </button>
-                </div>
+              <div className="bg-gray-800 p-6 rounded-xl mt-6">
+                <p className="text-white text-center">
+                  Connected as: <span className="font-semibold">{userName}</span>
+                </p>
+                <p className="text-gray-400 text-center mt-2">
+                  Use Zoom toolbar at the bottom for mute, video, share screen, etc.
+                </p>
               </div>
             )}
           </div>
@@ -182,8 +155,8 @@ export default function ZoomParticipant({
                 </div>
                 <button
                   onClick={() => {
-                    const text = `Join my meeting:\n${meetingLink}\n\nMeeting ID: ${meetingId}\nPassword: ${password}`;
-                    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                    const text = `Join my meeting:\n${meetingLink}\n\nMeeting ID: ${meetingId}\nPassword: ${password}`
+                    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
                   }}
                   className="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700"
                 >
@@ -199,7 +172,7 @@ export default function ZoomParticipant({
                 Prefer using Zoom app?
               </p>
               <button
-                onClick={() => window.open(`https://zoom.us/j/${meetingId}`, '_blank')}
+                onClick={() => window.open(`https://zoom.us/j/${meetingId}?pwd=${password}`, '_blank')}
                 className="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700"
               >
                 Join via Zoom App

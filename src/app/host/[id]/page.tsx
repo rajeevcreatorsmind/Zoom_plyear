@@ -2,183 +2,156 @@
 
 import { useParams, useSearchParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
+import ZoomMeeting from '@/components/ZoomMeeting'
 
 export default function HostPage() {
   const params = useParams()
   const searchParams = useSearchParams()
   
   const meetingId = params.id as string
-  const password = searchParams.get('pass')
+  const password = searchParams.get('pass') || ''
+  const name = searchParams.get('name') || 'Host'
+
   const [isStarted, setIsStarted] = useState(false)
   const [fullUrl, setFullUrl] = useState('')
-  const [hasCamera, setHasCamera] = useState(false)
 
   useEffect(() => {
-    setFullUrl(`${window.location.origin}/meeting/${meetingId}?pass=${password}`)
-    
-    // Check if device has camera
-    navigator.mediaDevices.getUserMedia({ video: true })
-      .then(() => setHasCamera(true))
-      .catch(() => setHasCamera(false))
+    if (typeof window !== 'undefined') {
+      setFullUrl(`${window.location.origin}/meeting/${meetingId}?pass=${password}`)
+    }
   }, [meetingId, password])
 
-  const startMeeting = async () => {
-    setIsStarted(true)
-    
-    if (hasCamera) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: true, 
-          audio: true 
-        })
-        // Camera available - would use stream here
-        console.log('Camera access granted')
-      } catch (error) {
-        console.log('Camera not available, continuing without video')
-      }
-    }
-    
-    // Meeting started successfully (with or without camera)
-    alert('Meeting started! Participants can now join.')
+  const startMeeting = () => setIsStarted(true)
+  const endMeeting = () => {
+    setIsStarted(false)
+    alert('Meeting ended.')
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
-      <div className="max-w-6xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Host Dashboard</h1>
-          <p className="text-gray-400">
-            Meeting ID: <span className="font-mono">{meetingId}</span>
-          </p>
-        </div>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Meeting Area */}
-          <div className="lg:col-span-2">
-            <div className="bg-black rounded-xl aspect-video overflow-hidden mb-6">
-              <div className="h-full flex flex-col items-center justify-center">
-                {isStarted ? (
-                  <>
-                    <div className="w-32 h-32 bg-gradient-to-r from-green-600 to-emerald-600 rounded-full flex items-center justify-center mb-6">
-                      <span className="text-5xl">📹</span>
-                    </div>
-                    <h2 className="text-3xl font-bold mb-2">Meeting is Live!</h2>
-                    <p className="text-gray-400">
-                      {hasCamera ? 'Camera is active' : 'Audio meeting only'}
-                    </p>
-                    <div className="mt-6 flex items-center">
-                      <div className="w-3 h-3 bg-green-500 rounded-full mr-3 animate-pulse"></div>
-                      <span className="text-green-400">Live Streaming</span>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="w-32 h-32 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full flex items-center justify-center mb-6">
-                      <span className="text-5xl">👑</span>
-                    </div>
-                    <h2 className="text-3xl font-bold mb-2">Ready to Start</h2>
-                    <p className="text-gray-400">
-                      {hasCamera ? 'Camera detected' : 'No camera - audio only'}
-                    </p>
-                  </>
-                )}
-              </div>
+    <div className="min-h-screen bg-gray-950 text-white">
+      {/* Top Bar - Fixed */}
+      <div className="fixed top-0 left-0 right-0 bg-gray-900 border-b border-gray-800 z-50">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold">Host Dashboard</h1>
+            <p className="text-gray-400 text-sm">
+              Meeting ID: <span className="font-mono text-base">{meetingId}</span>
+            </p>
+          </div>
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-3">
+              <div className={`w-3 h-3 rounded-full ${isStarted ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`} />
+              <span className={`font-medium ${isStarted ? 'text-green-400' : 'text-yellow-400'}`}>
+                {isStarted ? 'LIVE' : 'Ready'}
+              </span>
             </div>
-            
-            <div className="flex justify-center space-x-4">
+            {isStarted && (
               <button
-                onClick={startMeeting}
-                disabled={isStarted}
-                className={`px-10 py-4 rounded-lg font-bold text-lg ${
-                  isStarted 
-                    ? 'bg-gray-700 cursor-not-allowed' 
-                    : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90'
-                }`}
+                onClick={endMeeting}
+                className="bg-red-600 hover:bg-red-700 px-6 py-3 rounded-xl font-semibold transition"
               >
-                {isStarted ? '✓ Meeting Live' : '▶ Start Meeting'}
+                End Meeting
               </button>
-              
-              {isStarted && (
-                <>
-                  <button className="border border-blue-600 text-blue-600 px-8 py-4 rounded-lg font-bold">
-                    Invite More
-                  </button>
-                  <button 
-                    onClick={() => setIsStarted(false)}
-                    className="border border-red-600 text-red-600 px-8 py-4 rounded-lg font-bold"
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content - Padding for fixed header */}
+      <div className="pt-24 pb-12">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
+            {/* Main Video Area - Wider & Controlled Height */}
+            <div className="xl:col-span-3">
+              {isStarted ? (
+                <div className="bg-black rounded-2xl overflow-hidden shadow-2xl" style={{ height: '70vh' }}>
+                  <ZoomMeeting
+                    meetingNumber={meetingId}
+                    password={password}
+                    userName={name}
+                    role={1}
+                  />
+                </div>
+              ) : (
+                <div className="bg-gradient-to-br from-gray-900 to-black rounded-2xl shadow-2xl p-12 flex flex-col items-center justify-center" style={{ height: '70vh' }}>
+                  <div className="w-40 h-40 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full flex items-center justify-center mb-10 shadow-2xl">
+                    <span className="text-8xl">👑</span>
+                  </div>
+                  <h2 className="text-5xl font-bold mb-6">Ready to Host</h2>
+                  <p className="text-gray-400 text-xl mb-12 text-center max-w-md">
+                    Start the meeting and invite participants to join instantly in browser
+                  </p>
+                  <button
+                    onClick={startMeeting}
+                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 px-16 py-6 rounded-2xl font-bold text-3xl shadow-2xl transform hover:scale-105 transition duration-300"
                   >
-                    End Meeting
+                    ▶ Start Meeting Now
                   </button>
-                </>
+                </div>
               )}
             </div>
-          </div>
-          
-          {/* Sidebar */}
-          <div className="space-y-6">
-            <div className="bg-gray-800 rounded-xl p-6">
-              <h3 className="text-xl font-bold mb-4">Meeting Info</h3>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-gray-400">Meeting ID</p>
-                  <p className="text-xl font-mono">{meetingId}</p>
-                </div>
-                <div>
-                  <p className="text-gray-400">Password</p>
-                  <p className="text-xl">{password}</p>
-                </div>
-                <div>
-                  <p className="text-gray-400">Status</p>
-                  <p className="text-xl">
-                    {isStarted ? 
-                      <span className="text-green-500 flex items-center">
-                        <span className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
-                        LIVE
-                      </span> : 
-                      <span className="text-yellow-500">READY</span>
-                    }
-                  </p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-gray-800 rounded-xl p-6">
-              <h3 className="text-xl font-bold mb-4">Share Meeting</h3>
-              <div className="space-y-4">
-                <div>
-                  <p className="text-gray-400 mb-2">Browser Link:</p>
-                  <div className="flex items-center bg-gray-900 p-3 rounded">
-                    <code className="flex-1 text-sm truncate">
-                      {fullUrl || 'Loading...'}
-                    </code>
-                    <button
-                      onClick={() => fullUrl && navigator.clipboard.writeText(fullUrl)}
-                      className="ml-3 text-blue-400 hover:text-blue-300"
-                    >
-                      Copy
-                    </button>
+
+            {/* Sidebar - Wider & Better */}
+            <div className="space-y-8">
+              {/* Meeting Info */}
+              <div className="bg-gray-900 rounded-2xl p-8 border border-gray-800">
+                <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
+                  <span className="text-purple-400">📋</span> Meeting Details
+                </h3>
+                <div className="space-y-6">
+                  <div>
+                    <p className="text-gray-400 mb-1">Meeting ID</p>
+                    <p className="text-3xl font-mono text-white">{meetingId}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400 mb-1">Password</p>
+                    <p className="text-2xl font-mono text-white">{password || 'None'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400 mb-1">Host Name</p>
+                    <p className="text-xl text-white">{name}</p>
                   </div>
                 </div>
-                
-                <div className="grid grid-cols-2 gap-3">
+              </div>
+
+              {/* Share Section */}
+              <div className="bg-gray-900 rounded-2xl p-8 border border-gray-800">
+                <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
+                  <span className="text-blue-400">🔗</span> Invite Participants
+                </h3>
+                <p className="text-gray-400 mb-4">Browser Link (No App Required):</p>
+                <div className="bg-gray-950 p-5 rounded-xl mb-6 border border-gray-700">
+                  <code className="text-sm text-cyan-300 break-all block">
+                    {fullUrl || 'Loading...'}
+                  </code>
+                </div>
+                <button
+                  onClick={() => fullUrl && navigator.clipboard.writeText(fullUrl)}
+                  className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 py-4 rounded-xl font-bold text-lg mb-5 transition"
+                >
+                  📋 Copy Browser Link
+                </button>
+                <div className="grid grid-cols-2 gap-4">
                   <button
                     onClick={() => {
-                      const text = `Join my meeting:\n${fullUrl}\n\nMeeting ID: ${meetingId}\nPassword: ${password}`
+                      const text = `Join my meeting instantly in browser:\n${fullUrl}\n\nMeeting ID: ${meetingId}\nPassword: ${password || 'None'}`
                       window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
                     }}
-                    className="bg-green-600 py-3 rounded-lg font-bold"
+                    className="bg-green-600 hover:bg-green-700 py-4 rounded-xl font-bold transition"
                   >
                     WhatsApp
                   </button>
                   <a
-                    href={`https://zoom.us/j/${meetingId}`}
+                    href={`https://zoom.us/j/${meetingId}?pwd=${password}`}
                     target="_blank"
-                    className="bg-blue-600 py-3 rounded-lg font-bold text-center block"
+                    className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 py-4 rounded-xl font-bold text-center block transition"
                   >
                     Zoom App
                   </a>
                 </div>
               </div>
+
+              
             </div>
           </div>
         </div>

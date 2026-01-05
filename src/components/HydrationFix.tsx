@@ -5,17 +5,14 @@ export function HydrationFix() {
     <script
       dangerouslySetInnerHTML={{
         __html: `
-          if (document.body.hasAttribute('cz-shortcut-listen')) {
-            document.body.removeAttribute('cz-shortcut-listen');
+          // Remove whitespace text nodes from <html>
+          const html = document.documentElement;
+          for (let i = html.childNodes.length - 1; i >= 0; i--) {
+            const node = html.childNodes[i];
+            if (node.nodeType === Node.TEXT_NODE && node.textContent.trim() === '') {
+              html.removeChild(node);
+            }
           }
-          const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-              if (mutation.type === 'attributes' && mutation.attributeName === 'cz-shortcut-listen') {
-                document.body.removeAttribute('cz-shortcut-listen');
-              }
-            });
-          });
-          observer.observe(document.body, { attributes: true, attributeFilter: ['cz-shortcut-listen'] });
         `,
       }}
     />
