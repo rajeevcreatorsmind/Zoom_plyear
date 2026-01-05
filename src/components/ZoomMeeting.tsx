@@ -3,15 +3,11 @@
 import { useEffect, useRef } from 'react'
 import React from 'react'
 
-// YE WORKAROUND ADD KARNE SE ERROR PURA GAYAB HO JAYEGA
-const internals = (React as any).__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
+// YE WORKAROUND ADD KAR – BLACK SCREEN GAYAB, MEETING LOAD HOGI
+const internals = (React as any).__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
 if (internals) {
-  if (!internals.ReactCurrentOwner) {
-    internals.ReactCurrentOwner = { current: null }
-  }
-  if (!internals.ReactCurrentBatchConfig) {
-    internals.ReactCurrentBatchConfig = { transition: 0 }
-  }
+  internals.ReactCurrentOwner = internals.ReactCurrentOwner || { current: null };
+  internals.ReactCurrentBatchConfig = internals.ReactCurrentBatchConfig || { transition: 0 };
 }
 
 interface ZoomMeetingProps {
@@ -54,9 +50,9 @@ export default function ZoomMeeting({ meetingNumber, password, userName, role }:
           userName,
         })
 
-        console.log('✅ Meeting join ho gayi!')
+        console.log('✅ Meeting join ho gayi – ab toolbar dikhega!')
       } catch (error) {
-        console.error('❌ Error:', error)
+        console.error('Error:', error)
       }
     }
 
