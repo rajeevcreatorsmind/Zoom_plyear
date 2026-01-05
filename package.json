@@ -3,20 +3,26 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
-    "@zoom/meetingsdk": "^5.0.2",
+    "@zoom/meetingsdk": "^3.1.6",
     "axios": "^1.13.2",
+    "buffer": "^6.0.3",
+    "crypto": "^1.0.1",
+    "crypto-browserify": "^3.12.1",
+    "jsonwebtoken": "^9.0.3",
     "next": "16.1.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-icons": "^5.5.0"
+    "react-icons": "^5.5.0",
+    "stream-browserify": "^3.0.0"
   },
   "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",

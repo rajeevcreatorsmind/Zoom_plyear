@@ -3,6 +3,7 @@
 import { useParams, useSearchParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import ZoomMeeting from '@/components/ZoomMeeting'
+import { FaCopy, FaUsers, FaShareAlt, FaQrcode, FaWhatsapp, FaEnvelope } from 'react-icons/fa'
 
 export default function HostPage() {
   const params = useParams()
@@ -10,148 +11,281 @@ export default function HostPage() {
   
   const meetingId = params.id as string
   const password = searchParams.get('pass') || ''
-  const name = searchParams.get('name') || 'Host'
-
-  const [isStarted, setIsStarted] = useState(false)
-  const [fullUrl, setFullUrl] = useState('')
+  const userName = searchParams.get('name') || 'Host'
+  const [participantCount, setParticipantCount] = useState(0)
+  const [meetingStarted, setMeetingStarted] = useState(false)
+  const [shareUrl, setShareUrl] = useState('')
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setFullUrl(`${window.location.origin}/meeting/${meetingId}?pass=${password}`)
+      const url = `${window.location.origin}/meeting/${meetingId}?pass=${password}`
+      setShareUrl(url)
     }
   }, [meetingId, password])
 
-  const startMeeting = () => setIsStarted(true)
-  const endMeeting = () => {
-    setIsStarted(false)
-    alert('Meeting ended.')
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      alert('Failed to copy')
+    }
+  }
+
+  const startMeeting = () => {
+    setMeetingStarted(true)
+  }
+
+  const shareViaWhatsApp = () => {
+    const text = `Join my Zoom meeting!\n\nMeeting ID: ${meetingId}\nPassword: ${password}\nJoin Link: ${shareUrl}`
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
+  }
+
+  const shareViaEmail = () => {
+    const subject = 'Zoom Meeting Invitation'
+    const body = `You're invited to join a Zoom meeting.\n\nMeeting Details:\nTopic: Meeting\nID: ${meetingId}\nPassword: ${password}\n\nJoin Link: ${shareUrl}\n\nOr join manually:\nhttps://zoom.us/j/${meetingId}`
+    window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank')
+  }
+
+  const generateQRCode = () => {
+    // Simple QR code generation using Google Charts API
+    const qrUrl = `https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=${encodeURIComponent(shareUrl)}&choe=UTF-8`
+    window.open(qrUrl, '_blank', 'width=300,height=300')
+  }
+
+  if (!meetingId || !password) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">Invalid Meeting</h1>
+          <p>Meeting ID or password missing</p>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
-      {/* Top Bar - Fixed */}
-      <div className="fixed top-0 left-0 right-0 bg-gray-900 border-b border-gray-800 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold">Host Dashboard</h1>
-            <p className="text-gray-400 text-sm">
-              Meeting ID: <span className="font-mono text-base">{meetingId}</span>
-            </p>
-          </div>
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-3">
-              <div className={`w-3 h-3 rounded-full ${isStarted ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`} />
-              <span className={`font-medium ${isStarted ? 'text-green-400' : 'text-yellow-400'}`}>
-                {isStarted ? 'LIVE' : 'Ready'}
-              </span>
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white">
+      <div className="max-w-7xl mx-auto p-4 md:p-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">Host Dashboard</h1>
+          <div className="flex flex-wrap items-center gap-4 text-gray-400">
+            <div className="flex items-center">
+              <span className="mr-2">Meeting ID:</span>
+              <span className="font-mono text-white bg-gray-800 px-3 py-1 rounded">{meetingId}</span>
             </div>
-            {isStarted && (
-              <button
-                onClick={endMeeting}
-                className="bg-red-600 hover:bg-red-700 px-6 py-3 rounded-xl font-semibold transition"
-              >
-                End Meeting
-              </button>
+            <div className="flex items-center">
+              <span className="mr-2">Password:</span>
+              <span className="font-mono text-white bg-gray-800 px-3 py-1 rounded">{password}</span>
+            </div>
+            <div className="flex items-center">
+              <span className="mr-2">Role:</span>
+              <span className="text-green-400 font-semibold">Host</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Main Video Area */}
+          <div className="lg:col-span-2">
+            <div className="bg-gray-800 rounded-xl p-6">
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-2xl font-bold">Meeting Room</h2>
+                  <div className={`flex items-center px-4 py-2 rounded-full ${meetingStarted ? 'bg-green-900/30' : 'bg-blue-900/30'}`}>
+                    <div className={`w-3 h-3 rounded-full mr-2 ${meetingStarted ? 'bg-green-500 animate-pulse' : 'bg-blue-500'}`}></div>
+                    <span className="font-bold">{meetingStarted ? 'Live' : 'Ready'}</span>
+                  </div>
+                </div>
+
+                {/* Zoom Meeting Component */}
+                <div className="relative bg-black rounded-xl aspect-video overflow-hidden mb-6">
+                  {meetingStarted ? (
+                    <ZoomMeeting
+                      meetingNumber={meetingId}
+                      password={password}
+                      userName={userName}
+                      role={1}                     
+                    />
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center p-8">
+                      <div className="w-32 h-32 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full flex items-center justify-center mb-6">
+                        <span className="text-4xl">👑</span>
+                      </div>
+                      <h3 className="text-2xl font-bold mb-3">Ready to Host</h3>
+                      <p className="text-gray-400 text-center mb-6 max-w-md">
+                        You are the host of this meeting. Click below to start the meeting and enable video/audio.
+                      </p>
+                      <button
+                        onClick={startMeeting}
+                        className="px-10 py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg text-xl font-bold hover:opacity-90 transition"
+                      >
+                        Start Meeting as Host
+                      </button>
+                      <p className="text-sm text-gray-500 mt-4">
+                        Participants can join before you start, but won't have video/audio until you begin
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Stats */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-gray-900 p-4 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-blue-400">{participantCount}</div>
+                    <div className="text-sm text-gray-400">Participants</div>
+                  </div>
+                  <div className="bg-gray-900 p-4 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-green-400">Host</div>
+                    <div className="text-sm text-gray-400">You</div>
+                  </div>
+                  <div className="bg-gray-900 p-4 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-yellow-400">
+                      {meetingStarted ? 'On' : 'Off'}
+                    </div>
+                    <div className="text-sm text-gray-400">Status</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Share Section */}
+            <div className="bg-gray-800 p-6 rounded-xl">
+              <h3 className="text-xl font-bold mb-4 flex items-center">
+                <FaShareAlt className="mr-3" />
+                Share Meeting
+              </h3>
+              
+              <div className="mb-4">
+                <p className="text-gray-400 text-sm mb-2">Participant Link:</p>
+                <div className="flex items-center bg-gray-900 p-3 rounded">
+                  <code className="flex-1 text-sm text-blue-300 truncate">
+                    {shareUrl}
+                  </code>
+                  <button
+                    onClick={() => copyToClipboard(shareUrl)}
+                    className="ml-3 text-blue-400 hover:text-blue-300"
+                    title="Copy link"
+                  >
+                    <FaCopy />
+                  </button>
+                </div>
+                {copied && (
+                  <p className="text-green-400 text-sm mt-1">Copied to clipboard!</p>
+                )}
+                <p className="text-xs text-gray-500 mt-2">
+                  Share this link for browser join (no Zoom app needed)
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={shareViaWhatsApp}
+                  className="flex items-center justify-center bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700"
+                >
+                  <FaWhatsapp className="mr-2" />
+                  WhatsApp
+                </button>
+                
+                <button
+                  onClick={shareViaEmail}
+                  className="flex items-center justify-center bg-red-600 text-white py-3 rounded-lg font-bold hover:bg-red-700"
+                >
+                  <FaEnvelope className="mr-2" />
+                  Email
+                </button>
+
+                <button
+                  onClick={generateQRCode}
+                  className="col-span-2 flex items-center justify-center bg-purple-600 text-white py-3 rounded-lg font-bold hover:bg-purple-700"
+                >
+                  <FaQrcode className="mr-2" />
+                  Generate QR Code
+                </button>
+              </div>
+            </div>
+
+            {/* Meeting Info */}
+            <div className="bg-gray-800 p-6 rounded-xl">
+              <h3 className="text-xl font-bold mb-4">Meeting Information</h3>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-gray-400 text-sm">Host Name</p>
+                  <p className="text-lg font-semibold">{userName}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-sm">Meeting Status</p>
+                  <p className={`text-lg font-semibold ${meetingStarted ? 'text-green-400' : 'text-yellow-400'}`}>
+                    {meetingStarted ? 'Live Now' : 'Not Started'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-sm">Join Method</p>
+                  <div className="flex space-x-2 mt-2">
+                    <span className="bg-blue-900 text-blue-300 px-3 py-1 rounded text-sm">
+                      Browser
+                    </span>
+                    <span className="bg-green-900 text-green-300 px-3 py-1 rounded text-sm">
+                      Zoom App
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Host Controls */}
+            {meetingStarted && (
+              <div className="bg-gray-800 p-6 rounded-xl">
+                <h3 className="text-xl font-bold mb-4">Host Controls</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <button className="bg-blue-600 py-3 rounded-lg font-bold hover:bg-blue-700">
+                    Mute All
+                  </button>
+                  <button className="bg-green-600 py-3 rounded-lg font-bold hover:bg-green-700">
+                    Record
+                  </button>
+                  <button className="bg-purple-600 py-3 rounded-lg font-bold hover:bg-purple-700">
+                    Breakout
+                  </button>
+                  <button className="bg-red-600 py-3 rounded-lg font-bold hover:bg-red-700">
+                    End All
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-3">
+                  These controls affect all participants
+                </p>
+              </div>
             )}
           </div>
         </div>
-      </div>
 
-      {/* Main Content - Padding for fixed header */}
-      <div className="pt-24 pb-12">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
-            {/* Main Video Area - Wider & Controlled Height */}
-            <div className="xl:col-span-3">
-              {isStarted ? (
-                <div className="bg-black rounded-2xl overflow-hidden shadow-2xl" style={{ height: '70vh' }}>
-                  <ZoomMeeting
-                    meetingNumber={meetingId}
-                    password={password}
-                    userName={name}
-                    role={1}
-                  />
-                </div>
-              ) : (
-                <div className="bg-gradient-to-br from-gray-900 to-black rounded-2xl shadow-2xl p-12 flex flex-col items-center justify-center" style={{ height: '70vh' }}>
-                  <div className="w-40 h-40 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full flex items-center justify-center mb-10 shadow-2xl">
-                    <span className="text-8xl">👑</span>
-                  </div>
-                  <h2 className="text-5xl font-bold mb-6">Ready to Host</h2>
-                  <p className="text-gray-400 text-xl mb-12 text-center max-w-md">
-                    Start the meeting and invite participants to join instantly in browser
-                  </p>
-                  <button
-                    onClick={startMeeting}
-                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 px-16 py-6 rounded-2xl font-bold text-3xl shadow-2xl transform hover:scale-105 transition duration-300"
-                  >
-                    ▶ Start Meeting Now
-                  </button>
-                </div>
-              )}
+        {/* Instructions */}
+        <div className="mt-8 bg-gray-800/50 p-6 rounded-xl">
+          <h3 className="text-xl font-bold mb-4">Host Instructions</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-gray-900 p-4 rounded-lg">
+              <div className="text-blue-400 font-bold mb-2">1. Start Meeting</div>
+              <p className="text-gray-400 text-sm">
+                Click "Start Meeting as Host" to begin the meeting with your video and audio.
+              </p>
             </div>
-
-            {/* Sidebar - Wider & Better */}
-            <div className="space-y-8">
-              {/* Meeting Info */}
-              <div className="bg-gray-900 rounded-2xl p-8 border border-gray-800">
-                <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
-                  <span className="text-purple-400">📋</span> Meeting Details
-                </h3>
-                <div className="space-y-6">
-                  <div>
-                    <p className="text-gray-400 mb-1">Meeting ID</p>
-                    <p className="text-3xl font-mono text-white">{meetingId}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-400 mb-1">Password</p>
-                    <p className="text-2xl font-mono text-white">{password || 'None'}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-400 mb-1">Host Name</p>
-                    <p className="text-xl text-white">{name}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Share Section */}
-              <div className="bg-gray-900 rounded-2xl p-8 border border-gray-800">
-                <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
-                  <span className="text-blue-400">🔗</span> Invite Participants
-                </h3>
-                <p className="text-gray-400 mb-4">Browser Link (No App Required):</p>
-                <div className="bg-gray-950 p-5 rounded-xl mb-6 border border-gray-700">
-                  <code className="text-sm text-cyan-300 break-all block">
-                    {fullUrl || 'Loading...'}
-                  </code>
-                </div>
-                <button
-                  onClick={() => fullUrl && navigator.clipboard.writeText(fullUrl)}
-                  className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 py-4 rounded-xl font-bold text-lg mb-5 transition"
-                >
-                  📋 Copy Browser Link
-                </button>
-                <div className="grid grid-cols-2 gap-4">
-                  <button
-                    onClick={() => {
-                      const text = `Join my meeting instantly in browser:\n${fullUrl}\n\nMeeting ID: ${meetingId}\nPassword: ${password || 'None'}`
-                      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
-                    }}
-                    className="bg-green-600 hover:bg-green-700 py-4 rounded-xl font-bold transition"
-                  >
-                    WhatsApp
-                  </button>
-                  <a
-                    href={`https://zoom.us/j/${meetingId}?pwd=${password}`}
-                    target="_blank"
-                    className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 py-4 rounded-xl font-bold text-center block transition"
-                  >
-                    Zoom App
-                  </a>
-                </div>
-              </div>
-
-              
+            <div className="bg-gray-900 p-4 rounded-lg">
+              <div className="text-blue-400 font-bold mb-2">2. Share Link</div>
+              <p className="text-gray-400 text-sm">
+                Share the participant link with attendees. They can join via browser or Zoom app.
+              </p>
+            </div>
+            <div className="bg-gray-900 p-4 rounded-lg">
+              <div className="text-blue-400 font-bold mb-2">3. Manage Participants</div>
+              <p className="text-gray-400 text-sm">
+                Use host controls to manage the meeting, mute participants, record, etc.
+              </p>
             </div>
           </div>
         </div>

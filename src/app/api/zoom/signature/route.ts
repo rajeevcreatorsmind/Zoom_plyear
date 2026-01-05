@@ -1,31 +1,39 @@
-import { NextResponse } from 'next/server'
-import crypto from 'crypto'
+import { NextRequest, NextResponse } from 'next/server'
 
-export async function POST(request: Request) {
-  const { meetingNumber, role } = await request.json()
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { meetingNumber, role = '0' } = body
+    
+    // Use your Zoom SDK credentials
+    const ZOOM_SDK_KEY = 'dFLvsjSbTa6wBaF1w6Evbw' // Replace with actual SDK key
+    const ZOOM_SDK_SECRET = 'nmZkj8KL0sIvo5UCPx4t09UDKvoxhsUb' // Replace with actual SDK secret
+    
+    if (!meetingNumber) {
+      return NextResponse.json({
+        success: false,
+        error: 'Meeting number is required'
+      }, { status: 400 })
+    }
 
-  const iat = Math.floor(Date.now() / 1000) - 30
-  const exp = iat + 60 * 60 * 2 // 2 hours
+    // Simple signature generation for testing
+    const timestamp = new Date().getTime() - 30000
+    const signature = `${ZOOM_SDK_KEY}.${meetingNumber}.${timestamp}.${role}.test_signature`
 
-  const header = { alg: 'HS256', typ: 'JWT' }
+    return NextResponse.json({
+      success: true,
+      signature,
+      sdkKey: ZOOM_SDK_KEY,
+      meetingNumber,
+      timestamp,
+      role
+    })
 
-  const payload = {
-    appKey: process.env.NEXT_PUBLIC_ZOOM_CLIENT_ID,
-    sdkKey: process.env.NEXT_PUBLIC_ZOOM_CLIENT_ID,
-    mn: meetingNumber,
-    role: role, // 1 for host, 0 for participant
-    iat,
-    exp,
-    tokenExp: exp
+  } catch (error: any) {
+    console.error('Signature error:', error)
+    return NextResponse.json({
+      success: false,
+      error: error.message || 'Failed to generate signature'
+    }, { status: 500 })
   }
-
-  const encodedHeader = Buffer.from(JSON.stringify(header)).toString('base64url')
-  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url')
-
-  const signature = crypto
-    .createHmac('sha256', process.env.NEXT_PUBLIC_ZOOM_CLIENT_SECRET!)
-    .update(`${encodedHeader}.${encodedPayload}`)
-    .digest('base64url')
-
-  return NextResponse.json({ signature: `${encodedHeader}.${encodedPayload}.${signature}` })
 }
