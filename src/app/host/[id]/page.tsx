@@ -1,9 +1,9 @@
 'use client'
 
 import { useParams, useSearchParams } from 'next/navigation'
-import { useState, useEffect } from 'react'
-import ZoomMeeting from '@/components/ZoomMeeting'
-import { FaCopy, FaUsers, FaShareAlt, FaQrcode, FaWhatsapp, FaEnvelope } from 'react-icons/fa'
+import { useState, useEffect, useRef } from 'react'
+import ZoomMeeting, { ZoomMeetingHandle } from '@/components/ZoomMeeting'
+import { FaCopy, FaUsers, FaShareAlt, FaQrcode, FaWhatsapp, FaEnvelope, FaSpinner } from 'react-icons/fa'
 
 export default function HostPage() {
   const params = useParams()
@@ -16,6 +16,10 @@ export default function HostPage() {
   const [meetingStarted, setMeetingStarted] = useState(false)
   const [shareUrl, setShareUrl] = useState('')
   const [copied, setCopied] = useState(false)
+  const [joining, setJoining] = useState(false)
+  
+  // Create a ref for ZoomMeeting component
+  const zoomMeetingRef = useRef<ZoomMeetingHandle>(null)
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -34,10 +38,33 @@ export default function HostPage() {
     }
   }
 
-  const startMeeting = () => {
+  const startMeeting = async () => {
     console.log('Starting meeting...')
-    setMeetingStarted(true)
+    setJoining(true)
+    
+    try {
+      // Direct approach - no ref needed
+      setMeetingStarted(true)
+      
+      // Add small delay for UI update
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // If ref is available, use it
+      if (zoomMeetingRef.current) {
+        await zoomMeetingRef.current.joinMeeting()
+      }
+    } catch (error) {
+      console.error('Failed to start meeting:', error)
+    } finally {
+      setJoining(false)
+    }
   }
+
+
+
+
+
+
 
   const shareViaWhatsApp = () => {
     const text = `Join my Zoom meeting!\n\nMeeting ID: ${meetingId}\nPassword: ${password}\nJoin Link: ${shareUrl}`
@@ -54,6 +81,10 @@ export default function HostPage() {
     const qrUrl = `https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=${encodeURIComponent(shareUrl)}&choe=UTF-8`
     window.open(qrUrl, '_blank', 'width=300,height=300')
   }
+
+
+
+
 
   if (!meetingId || !password) {
     return (
@@ -103,7 +134,7 @@ export default function HostPage() {
 
                 {/* IMPORTANT: Show START button ABOVE ZoomMeeting */}
                 {!meetingStarted && (
-                  <div className="mb-6 p-6 bg-gray-900/50 rounded-xl text-center border border-gray-700">
+                  <div className="relative z-50 mb-6 p-6 bg-gray-900/80 backdrop-blur-sm rounded-xl text-center border border-gray-700 shadow-2xl">
                     <div className="w-20 h-20 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full flex items-center justify-center mb-4 mx-auto">
                       <span className="text-3xl">👑</span>
                     </div>
@@ -113,9 +144,17 @@ export default function HostPage() {
                     </p>
                     <button
                       onClick={startMeeting}
-                      className="px-10 py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg text-xl font-bold hover:opacity-90 transition hover:scale-105 active:scale-95 shadow-lg shadow-purple-900/50 w-full max-w-md"
+                      disabled={joining}
+                      className="relative z-50 px-10 py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg text-xl font-bold hover:opacity-90 transition hover:scale-105 active:scale-95 shadow-lg shadow-purple-900/50 w-full max-w-md disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Start Meeting as Host
+                      {joining ? (
+                        <>
+                          <FaSpinner className="animate-spin inline mr-3" />
+                          Starting Meeting...
+                        </>
+                      ) : (
+                        'Start Meeting as Host'
+                      )}
                     </button>
                     <p className="text-sm text-gray-500 mt-4">
                       Participants can join before you start, but won't have video/audio until you begin
@@ -127,11 +166,16 @@ export default function HostPage() {
                 <div className="relative bg-black rounded-xl aspect-video overflow-hidden">
                   {meetingStarted ? (
                     <ZoomMeeting
+                      ref={zoomMeetingRef}
                       meetingNumber={meetingId}
                       password={password}
                       userName={userName}
                       role={1}
-                      autoJoin={true} // Pass this prop to auto-join
+                      autoJoin={true}
+                      onJoin={() => {
+                        console.log('Host joined meeting!')
+                        setJoining(false)
+                      }}
                     />
                   ) : (
                     <div className="h-full flex items-center justify-center bg-gray-900">
@@ -258,7 +302,10 @@ export default function HostPage() {
               <div className="bg-gray-800 p-6 rounded-xl">
                 <h3 className="text-xl font-bold mb-4">Host Controls</h3>
                 <div className="grid grid-cols-2 gap-3">
-                  <button className="bg-blue-600 py-3 rounded-lg font-bold hover:bg-blue-700">
+                  <button 
+                    onClick={() => zoomMeetingRef.current?.toggleAudio()}
+                    className="bg-blue-600 py-3 rounded-lg font-bold hover:bg-blue-700"
+                  >
                     Mute All
                   </button>
                   <button className="bg-green-600 py-3 rounded-lg font-bold hover:bg-green-700">
@@ -267,7 +314,13 @@ export default function HostPage() {
                   <button className="bg-purple-600 py-3 rounded-lg font-bold hover:bg-purple-700">
                     Breakout
                   </button>
-                  <button className="bg-red-600 py-3 rounded-lg font-bold hover:bg-red-700">
+                  <button 
+                    onClick={() => {
+                      zoomMeetingRef.current?.leaveMeeting()
+                      setMeetingStarted(false)
+                    }}
+                    className="bg-red-600 py-3 rounded-lg font-bold hover:bg-red-700"
+                  >
                     End All
                   </button>
                 </div>
@@ -281,4 +334,17 @@ export default function HostPage() {
       </div>
     </div>
   )
+}
+
+// Add missing functions
+const shareViaWhatsApp = () => {
+  // Implementation
+}
+
+const shareViaEmail = () => {
+  // Implementation
+}
+
+const generateQRCode = () => {
+  // Implementation
 }
