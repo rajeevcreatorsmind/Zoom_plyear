@@ -215,110 +215,162 @@ const ZoomMeeting = forwardRef<ZoomMeetingHandle, ZoomMeetingProps>(({
     loadDependencies();
   }, []);
 
-  // Auto-join
-  useEffect(() => {
-    if (autoJoin && zoomReady && !isJoined && !loading && !joinAttemptedRef.current) {
-      console.log('Auto-joining meeting...');
+// Auto-join - Increase delay
+useEffect(() => {
+  if (autoJoin && zoomReady && !isJoined && !loading && !joinAttemptedRef.current) {
+    console.log('Auto-joining meeting in 5 seconds...');
+    setTimeout(() => {
       joinMeeting();
-    }
-  }, [zoomReady, autoJoin, isJoined, loading]);
+    }, 5000); // 5 second delay
+  }
+}, [zoomReady, autoJoin, isJoined, loading]);
 
-  const joinMeeting = async () => {
-    console.log('=== JOIN MEETING ===');
+const joinMeeting = async () => {
+  console.log('=== JOIN MEETING ===');
+  
+  if (!window.ZoomMtg) {
+    setError('Zoom SDK not ready');
+    return;
+  }
+
+  if (joinAttemptedRef.current) {
+    console.log('Join already attempted');
+    return;
+  }
+
+  try {
+    joinAttemptedRef.current = true;
+    setLoading(true);
+    setError('');
     
-    if (!window.ZoomMtg) {
-      setError('Zoom SDK not ready');
-      return;
+    console.log('📞 Getting signature for meeting:', meetingNumber);
+    
+    // Get signature
+    const signatureResponse = await fetch('/api/zoom/signature', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        meetingNumber, 
+        role: role.toString() 
+      }),
+    });
+
+    if (!signatureResponse.ok) {
+      throw new Error(`HTTP error: ${signatureResponse.status}`);
     }
 
-    if (joinAttemptedRef.current) {
-      console.log('Join already attempted');
-      return;
+    const signatureData = await signatureResponse.json();
+    
+    if (!signatureData.success) {
+      throw new Error(signatureData.error || 'Failed to get signature');
     }
 
-    try {
-      joinAttemptedRef.current = true;
-      setLoading(true);
-      setError('');
-      
-      // Clear previous meeting
-      try {
-        const root = document.getElementById('zmmtg-root');
-        if (root) root.innerHTML = '';
-      } catch (e) {}
+    console.log('✅ Signature received');
+    
+    // Clear container
+    const container = document.getElementById('zmmtg-root');
+    if (container) {
+      container.innerHTML = '';
+      container.style.width = '100%';
+      container.style.height = '100%';
+      container.style.minHeight = '500px';
+      container.style.backgroundColor = 'black';
+    }
 
-      console.log('📞 Getting signature for meeting:', meetingNumber);
-      
-      // Get signature
-      const signatureResponse = await fetch('/api/zoom/signature', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ meetingNumber, role: role.toString() }),
-      });
-
-      if (!signatureResponse.ok) {
-        throw new Error(`HTTP error: ${signatureResponse.status}`);
-      }
-
-      const signatureData = await signatureResponse.json();
-      
-      if (!signatureData.success) {
-        throw new Error(signatureData.error || 'Failed to get signature');
-      }
-
-      console.log('✅ Signature received');
-      
-      // Initialize Zoom
-      window.ZoomMtg.setZoomJSLib('https://source.zoom.us/2.18.0/lib', '/av');
-      window.ZoomMtg.preLoadWasm();
-      window.ZoomMtg.prepareWebSDK();
-      
-      window.ZoomMtg.init({
-        leaveUrl: window.location.origin + '/',
-        isSupportAV: true,
-        success: () => {
-          console.log('✅ Zoom init success! Joining...');
-
+    // ✅ SIMPLE APPROACH: Use Zoom's built-in method
+    console.log('🔧 Setting up Zoom...');
+    
+    // Use Zoom's simpler method
+    window.ZoomMtg.setZoomJSLib('https://source.zoom.us/2.18.0/lib', '/av');
+    window.ZoomMtg.preLoadWasm();
+    window.ZoomMtg.prepareWebSDK();
+    window.ZoomMtg.i18n.load('en-US');
+    
+    // Initialize with callback
+    window.ZoomMtg.init({
+      leaveUrl: window.location.origin + '/',
+      isSupportAV: true,
+      success: () => {
+        console.log('✅ Zoom init success! Waiting 3 seconds before join...');
+        
+        // ✅ CRITICAL: Wait 3 seconds before joining
+        setTimeout(() => {
+          console.log('🎯 Attempting to join meeting...');
+          
           window.ZoomMtg.join({
             signature: signatureData.signature,
-            sdkKey: 'dFLvsjSbTa6wBaF1w6Evbw', // 🔥 HARDCODED SDK KEY
+            sdkKey: 'dFLvsjSbTa6wBaF1w6Evbw',
             meetingNumber: signatureData.meetingNumber,
             userName: userName,
-            passWord: password,
+            passWord: password || '',
+            tk: '',
+            zak: '',
             success: (success: any) => {
               console.log('🎉 ✅ JOIN SUCCESS!', success);
               setIsJoined(true);
               setLoading(false);
               onJoin?.();
               
-              // Show success alert
-              alert('✅ Meeting joined successfully! Check your audio.');
+              alert('✅ Meeting joined! Check your audio.');
             },
             error: (error: any) => {
-              console.error('❌ Join error:', error);
+              console.error('❌ Join error details:', JSON.stringify(error));
               setError(`Join failed: ${error.errorMessage || error.errorCode || 'Unknown error'}`);
               setLoading(false);
               joinAttemptedRef.current = false;
-              alert('❌ Join failed: ' + JSON.stringify(error));
+              
+              // Try alternative join method
+              setTimeout(() => {
+                console.log('🔄 Trying alternative join method...');
+                tryAlternativeJoin(signatureData);
+              }, 2000);
             }
           });
-        },
-        error: (err: any) => {
-          console.error('❌ Init error:', err);
-          setError(`Init failed: ${err.message}`);
-          setLoading(false);
-          joinAttemptedRef.current = false;
-        }
-      });
+        }, 3000); // 3 second delay
+      },
+      error: (err: any) => {
+        console.error('❌ Init error:', err);
+        setError(`Init failed: ${err.message}`);
+        setLoading(false);
+        joinAttemptedRef.current = false;
+      }
+    });
 
-    } catch (err: any) {
-      console.error('❌ Catch error:', err);
-      setError(err.message || 'Failed to join meeting');
-      setLoading(false);
-      joinAttemptedRef.current = false;
-    }
-  };
+  } catch (err: any) {
+    console.error('❌ Catch error:', err);
+    setError(err.message || 'Failed to join meeting');
+    setLoading(false);
+    joinAttemptedRef.current = false;
+  }
+};
 
+// Alternative join function
+const tryAlternativeJoin = (signatureData: any) => {
+  console.log('🔄 Alternative join attempt...');
+  
+  try {
+    // Direct join without re-init
+    window.ZoomMtg.join({
+      signature: signatureData.signature,
+      sdkKey: 'dFLvsjSbTa6wBaF1w6Evbw',
+      meetingNumber: signatureData.meetingNumber,
+      userName: userName,
+      passWord: password || '',
+      success: (success: any) => {
+        console.log('🎉 ✅ ALTERNATIVE JOIN SUCCESS!', success);
+        setIsJoined(true);
+        setLoading(false);
+        alert('✅ Alternative join worked!');
+      },
+      error: (error: any) => {
+        console.error('❌ Alternative join also failed:', error);
+        alert('❌ Both join methods failed. Please refresh and try again.');
+      }
+    });
+  } catch (e) {
+    console.error('❌ Alternative join error:', e);
+  }
+};
   const toggleAudio = () => {
     if (!window.ZoomMtg || !isJoined) return;
     

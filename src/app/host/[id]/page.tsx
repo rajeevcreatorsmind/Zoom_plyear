@@ -157,18 +157,15 @@ const requestPermissions = async () => {
     }
   }
 
-  const startMeeting = async () => {
-    console.log('Starting meeting...')
-    
-    if (!permissionsGranted) {
-      await requestPermissions()
-      if (!permissionsGranted) {
-        return
-      }
-    }
-    
-    setMeetingStarted(true)
-  }
+const startMeeting = async () => {
+  console.log('Starting meeting...')
+  
+  // Allow meeting immediately (permissions optional)
+  setPermissionsGranted(true);
+  setMeetingStarted(true);
+  
+  console.log('✅ Meeting started - Zoom will handle audio permissions');
+};
 
   // Host Control Functions
   const toggleAudio = () => {
@@ -371,19 +368,19 @@ const requestPermissions = async () => {
                       </div>
                     )}
                     
-                    <p className="text-gray-400 text-center mb-6">
-                      {permissionsGranted 
-                        ? 'Click below to start hosting' 
-                        : 'Allow microphone access first'}
-                    </p>
-                    
-                    <button
-                      onClick={startMeeting}
-                      disabled={!permissionsGranted}
-                      className="w-full px-10 py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg text-xl font-bold hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Start Meeting as Host
-                    </button>
+<p className="text-gray-400 text-center mb-6">
+  {permissionsGranted 
+    ? 'Click below to start hosting' 
+    : 'Click below to start hosting (microphone optional)'} {/* Changed message */}
+</p>
+
+<button
+  onClick={startMeeting}
+  // disabled={!permissionsGranted} // Remove this disabled condition
+  className="w-full px-10 py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg text-xl font-bold hover:opacity-90 transition"
+>
+  Start Meeting as Host
+</button>
                   </div>
                 )}
 

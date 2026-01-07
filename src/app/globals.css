@@ -10,3 +10,19 @@ html {
 body {
   overflow-y: scroll;  /* Forces scrollbar even if content fits – good fallback */
 }
+
+/* Add to globals.css or component */
+#zmmtg-root {
+  width: 100% !important;
+  height: 500px !important;
+  min-height: 500px !important;
+  background: black !important;
+  position: relative !important;
+}
+
+#zmmtg-root .preview-video {
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+  visibility: visible !important;
+}
