@@ -25,9 +25,8 @@ export default function HostPage() {
   const [audioEnabled, setAudioEnabled] = useState(true)
   const [videoEnabled, setVideoEnabled] = useState(true)
   const [screenSharing, setScreenSharing] = useState(false)
-  const [hasCamera, setHasCamera] = useState(true) // Assume true by default
+  const [hasCamera, setHasCamera] = useState(true)
   const [hasMicrophone, setHasMicrophone] = useState(true)
-  const [deviceCheckDone, setDeviceCheckDone] = useState(false)
   
   const zoomMeetingRef = useRef<ZoomMeetingHandle>(null)
 
@@ -38,114 +37,35 @@ export default function HostPage() {
     }
   }, [meetingId, password])
 
-  // Check available devices
-  useEffect(() => {
-    const checkDevices = async () => {
-      if (!navigator.mediaDevices) {
-        console.log('Media devices not supported')
-        setDeviceCheckDone(true)
-        return
+  const requestPermissions = async () => {
+    setLoadingPermissions(true);
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      
+      const hasMicrophone = devices.some(d => d.kind === 'audioinput' && d.deviceId);
+      const hasCamera = devices.some(d => d.kind === 'videoinput' && d.deviceId);
+      
+      if (hasMicrophone) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          stream.getTracks().forEach(track => track.stop());
+        } catch (err) {}
       }
       
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices()
-        const cameraExists = devices.some(device => 
-          device.kind === 'videoinput' && device.deviceId !== ''
-        )
-        const micExists = devices.some(device => 
-          device.kind === 'audioinput' && device.deviceId !== ''
-        )
-        
-        setHasCamera(cameraExists)
-        setHasMicrophone(micExists)
-        console.log('Devices found - Camera:', cameraExists, 'Microphone:', micExists)
-      } catch (error) {
-        console.warn('Device enumeration failed:', error)
-      } finally {
-        setDeviceCheckDone(true)
+      if (hasCamera) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          stream.getTracks().forEach(track => track.stop());
+        } catch (err) {}
       }
+      
+      setPermissionsGranted(true);
+    } catch (error) {
+      setPermissionsGranted(true);
+    } finally {
+      setLoadingPermissions(false);
     }
-    
-    checkDevices()
-  }, [])
-
-const requestPermissions = async () => {
-  setLoadingPermissions(true);
-  try {
-    let micGranted = false;
-    let cameraGranted = false;
-    
-    // FIRST: Check if devices exist
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    console.log('Available devices:', devices);
-    
-    const hasMicrophone = devices.some(d => d.kind === 'audioinput' && d.deviceId);
-    const hasCamera = devices.some(d => d.kind === 'videoinput' && d.deviceId);
-    
-    console.log('Microphone available:', hasMicrophone);
-    console.log('Camera available:', hasCamera);
-    
-    // SIMPLIFIED: Try only if device exists
-    if (hasMicrophone) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          audio: { 
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true
-          } 
-        });
-        stream.getTracks().forEach(track => track.stop());
-        micGranted = true;
-        console.log('✅ Microphone permission granted');
-      } catch (err) {
-        console.warn('⚠️ Microphone permission denied:', err);
-      }
-    } else {
-      console.warn('❌ No microphone detected');
-    }
-    
-    if (hasCamera) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { 
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          } 
-        });
-        stream.getTracks().forEach(track => track.stop());
-        cameraGranted = true;
-        console.log('✅ Camera permission granted');
-      } catch (err) {
-        console.warn('⚠️ Camera permission denied:', err);
-      }
-    } else {
-      console.warn('❌ No camera detected');
-    }
-    
-    // Allow meeting WITHOUT microphone (listen-only mode)
-    setPermissionsGranted(true);
-    
-    // Show appropriate message
-    if (micGranted && cameraGranted) {
-      alert('✅ Permissions granted! Ready to host.');
-    } else if (micGranted && !cameraGranted) {
-      alert('✅ Microphone ready! Meeting will be audio-only.');
-    } else if (!micGranted && hasMicrophone) {
-      alert('⚠️ Microphone permission denied. You can still host as listen-only.');
-    } else {
-      alert('ℹ️ No microphone detected. You can still host - participants can hear you through chat.');
-    }
-    
-  } catch (error) {
-    console.error('Permission error:', error);
-    // Still allow proceeding
-    setPermissionsGranted(true);
-    alert('⚠️ Device check failed, but you can still proceed with hosting.');
-  } finally {
-    setLoadingPermissions(false);
-  }
-};
+  };
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -157,17 +77,11 @@ const requestPermissions = async () => {
     }
   }
 
-const startMeeting = async () => {
-  console.log('Starting meeting...')
-  
-  // Allow meeting immediately (permissions optional)
-  setPermissionsGranted(true);
-  setMeetingStarted(true);
-  
-  console.log('✅ Meeting started - Zoom will handle audio permissions');
-};
+  const startMeeting = async () => {
+    setPermissionsGranted(true);
+    setMeetingStarted(true);
+  };
 
-  // Host Control Functions
   const toggleAudio = () => {
     if (zoomMeetingRef.current) {
       zoomMeetingRef.current.toggleAudio()
@@ -176,7 +90,7 @@ const startMeeting = async () => {
   }
 
   const toggleVideo = () => {
-    if (zoomMeetingRef.current && hasCamera) {
+    if (zoomMeetingRef.current) {
       zoomMeetingRef.current.toggleVideo()
       setVideoEnabled(!videoEnabled)
     }
@@ -186,11 +100,6 @@ const startMeeting = async () => {
     if (!zoomMeetingRef.current) return
     
     try {
-      if (!navigator.mediaDevices.getDisplayMedia) {
-        alert('Screen sharing not supported in this browser')
-        return
-      }
-      
       const screenStream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
         audio: true
@@ -204,7 +113,6 @@ const startMeeting = async () => {
       })
       
     } catch (error) {
-      console.error('Screen share error:', error)
       alert('Failed to start screen sharing')
     }
   }
@@ -223,7 +131,6 @@ const startMeeting = async () => {
       setAudioEnabled(true)
       setVideoEnabled(true)
       setScreenSharing(false)
-      alert('Meeting ended')
     }
   }
 
@@ -277,33 +184,7 @@ const startMeeting = async () => {
           </div>
         </div>
 
-
-
-
-{/* Host Page ke end mein add karo */}
-<div className="fixed bottom-4 right-4 z-50">
-  <button 
-    onClick={() => {
-      console.log('=== DEBUG ===');
-      console.log('Zoom SDK loaded:', !!window.ZoomMtg);
-      console.log('Window.ZoomMtg:', window.ZoomMtg);
-      console.log('All functions:', Object.keys(window.ZoomMtg || {}));
-      
-      // Force join meeting
-      if (zoomMeetingRef.current) {
-        console.log('Forcing join...');
-        zoomMeetingRef.current.joinMeeting();
-      }
-    }}
-    className="bg-yellow-600 text-white p-3 rounded-lg font-bold"
-  >
-    🐞 Debug Zoom
-  </button>
-</div>
-
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Area */}
           <div className="lg:col-span-2">
             <div className="bg-gray-800 rounded-xl p-6">
               <div className="mb-6">
@@ -315,7 +196,6 @@ const startMeeting = async () => {
                   </div>
                 </div>
 
-                {/* Pre-Meeting Setup */}
                 {!meetingStarted && (
                   <div className="mb-6 p-6 bg-gray-900/50 rounded-xl border border-gray-700">
                     <div className="w-20 h-20 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full flex items-center justify-center mb-4 mx-auto">
@@ -323,24 +203,6 @@ const startMeeting = async () => {
                     </div>
                     <h3 className="text-2xl font-bold mb-3 text-center">Ready to Host</h3>
                     
-                    {/* Device Status */}
-                    {deviceCheckDone && (
-                      <div className="mb-4 p-4 bg-gray-800 rounded-lg">
-                        <h4 className="font-bold mb-2">Device Status:</h4>
-                        <div className="space-y-2">
-                          <div className="flex items-center">
-                            <div className={`w-3 h-3 rounded-full mr-2 ${hasMicrophone ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                            <span>Microphone: {hasMicrophone ? 'Available' : 'Not Found'}</span>
-                          </div>
-                          <div className="flex items-center">
-                            <div className={`w-3 h-3 rounded-full mr-2 ${hasCamera ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-                            <span>Camera: {hasCamera ? 'Available' : 'Not Found (Optional)'}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Permissions Section */}
                     {!permissionsGranted && (
                       <div className="mb-4 p-4 bg-yellow-900/30 rounded-lg">
                         <h4 className="font-bold text-yellow-300 mb-2 flex items-center">
@@ -348,8 +210,7 @@ const startMeeting = async () => {
                           Permissions Required
                         </h4>
                         <p className="text-yellow-200 text-sm mb-3">
-                          Microphone access is required to host the meeting. 
-                          Camera is optional for video.
+                          Allow microphone and camera access for best experience
                         </p>
                         <button
                           onClick={requestPermissions}
@@ -362,29 +223,25 @@ const startMeeting = async () => {
                               Requesting Permissions...
                             </>
                           ) : (
-                            'Allow Microphone Access'
+                            'Allow Camera & Microphone'
                           )}
                         </button>
                       </div>
                     )}
                     
-<p className="text-gray-400 text-center mb-6">
-  {permissionsGranted 
-    ? 'Click below to start hosting' 
-    : 'Click below to start hosting (microphone optional)'} {/* Changed message */}
-</p>
+                    <p className="text-gray-400 text-center mb-6">
+                      Click below to start hosting
+                    </p>
 
-<button
-  onClick={startMeeting}
-  // disabled={!permissionsGranted} // Remove this disabled condition
-  className="w-full px-10 py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg text-xl font-bold hover:opacity-90 transition"
->
-  Start Meeting as Host
-</button>
+                    <button
+                      onClick={startMeeting}
+                      className="w-full px-10 py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg text-xl font-bold hover:opacity-90 transition"
+                    >
+                      Start Meeting as Host
+                    </button>
                   </div>
                 )}
 
-                {/* Meeting Display */}
                 <div className="relative bg-black rounded-xl aspect-video overflow-hidden mb-6">
                   {meetingStarted ? (
                     <ZoomMeeting
@@ -402,33 +259,21 @@ const startMeeting = async () => {
                           <span className="text-5xl">🎤</span>
                         </div>
                         <h3 className="text-xl font-bold mb-2">Meeting Not Started</h3>
-                        <p className="text-gray-400">
-                          {permissionsGranted 
-                            ? 'Ready to start hosting' 
-                            : 'Setup required'}
-                        </p>
+                        <p className="text-gray-400">Ready to start hosting</p>
                       </div>
                     </div>
                   )}
                 </div>
 
-                {/* Host Controls */}
                 {meetingStarted && (
                   <div className="bg-gray-900 p-6 rounded-xl border border-gray-700">
                     <h3 className="text-xl font-bold mb-4 text-center">Host Controls</h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      {/* Audio Control */}
                       <button
                         onClick={toggleAudio}
-                        disabled={!hasMicrophone}
                         className={`flex flex-col items-center justify-center p-4 rounded-lg font-bold transition ${
-                          audioEnabled && hasMicrophone
-                            ? 'bg-blue-600 hover:bg-blue-700' 
-                            : !hasMicrophone
-                            ? 'bg-gray-700 cursor-not-allowed'
-                            : 'bg-red-600 hover:bg-red-700'
-                        } ${!hasMicrophone ? 'opacity-60' : ''}`}
-                        title={!hasMicrophone ? 'No microphone available' : ''}
+                          audioEnabled ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'
+                        }`}
                       >
                         {audioEnabled ? (
                           <>
@@ -443,18 +288,11 @@ const startMeeting = async () => {
                         )}
                       </button>
 
-                      {/* Video Control */}
                       <button
                         onClick={toggleVideo}
-                        disabled={!hasCamera}
                         className={`flex flex-col items-center justify-center p-4 rounded-lg font-bold transition ${
-                          videoEnabled && hasCamera
-                            ? 'bg-blue-600 hover:bg-blue-700' 
-                            : !hasCamera
-                            ? 'bg-gray-700 cursor-not-allowed'
-                            : 'bg-red-600 hover:bg-red-700'
-                        } ${!hasCamera ? 'opacity-60' : ''}`}
-                        title={!hasCamera ? 'No camera available' : ''}
+                          videoEnabled ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'
+                        }`}
                       >
                         {videoEnabled ? (
                           <>
@@ -469,13 +307,10 @@ const startMeeting = async () => {
                         )}
                       </button>
 
-                      {/* Screen Share */}
                       <button
                         onClick={screenSharing ? stopScreenShare : startScreenShare}
                         className={`flex flex-col items-center justify-center p-4 rounded-lg font-bold transition ${
-                          screenSharing 
-                            ? 'bg-red-600 hover:bg-red-700' 
-                            : 'bg-green-600 hover:bg-green-700'
+                          screenSharing ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
                         }`}
                       >
                         <FaDesktop className="h-7 w-7 mb-2" />
@@ -484,7 +319,6 @@ const startMeeting = async () => {
                         </span>
                       </button>
 
-                      {/* End Meeting */}
                       <button
                         onClick={endMeeting}
                         className="flex flex-col items-center justify-center p-4 rounded-lg font-bold bg-gradient-to-r from-red-600 to-red-700 hover:opacity-90 transition"
@@ -494,13 +328,12 @@ const startMeeting = async () => {
                       </button>
                     </div>
                     
-                    {/* Status Bar */}
                     <div className="mt-4 grid grid-cols-3 gap-3 text-center text-sm">
                       <div className={`p-2 rounded ${audioEnabled ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
                         Audio: {audioEnabled ? 'ON' : 'OFF'}
                       </div>
-                      <div className={`p-2 rounded ${videoEnabled && hasCamera ? 'bg-green-900/30 text-green-400' : !hasCamera ? 'bg-gray-800 text-gray-400' : 'bg-red-900/30 text-red-400'}`}>
-                        Video: {!hasCamera ? 'N/A' : videoEnabled ? 'ON' : 'OFF'}
+                      <div className={`p-2 rounded ${videoEnabled ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
+                        Video: {videoEnabled ? 'ON' : 'OFF'}
                       </div>
                       <div className={`p-2 rounded ${screenSharing ? 'bg-yellow-900/30 text-yellow-400' : 'bg-gray-800 text-gray-400'}`}>
                         Screen: {screenSharing ? 'SHARING' : 'READY'}
@@ -512,9 +345,7 @@ const startMeeting = async () => {
             </div>
           </div>
 
-          {/* Sidebar */}
           <div className="space-y-6">
-            {/* Share Section */}
             <div className="bg-gray-800 p-6 rounded-xl">
               <h3 className="text-xl font-bold mb-4 flex items-center">
                 <FaShareAlt className="mr-3" />
@@ -538,9 +369,6 @@ const startMeeting = async () => {
                 {copied && (
                   <p className="text-green-400 text-sm mt-1">✓ Copied to clipboard</p>
                 )}
-                <p className="text-xs text-gray-500 mt-1">
-                  Share this link - no Zoom app needed
-                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -570,7 +398,6 @@ const startMeeting = async () => {
               </div>
             </div>
 
-            {/* Tips Section */}
             <div className="bg-gray-800 p-6 rounded-xl">
               <h3 className="text-xl font-bold mb-4">Hosting Tips</h3>
               <ul className="space-y-3 text-gray-300">
@@ -585,10 +412,6 @@ const startMeeting = async () => {
                 <li className="flex items-start">
                   <span className="text-green-400 mr-2">•</span>
                   <span>Mute participants if needed</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="text-green-400 mr-2">•</span>
-                  <span>Use participant link for easy joining</span>
                 </li>
               </ul>
             </div>
