@@ -1,19 +1,46 @@
-import type { NextConfig } from "next"
-
-const nextConfig: NextConfig = {
-  reactStrictMode: false,
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
   
-  // eslint aur typescript options hata do
-  // webpack config rahega
-  webpack: (config) => {
-    config.resolve.fallback = {
-      ...config.resolve.fallback,
-      crypto: false,
-      stream: false,
-      buffer: false,
-    }
-    return config
+  // FIX for Zoom COEP issue
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'unsafe-none', // Disable COEP for Zoom
+          },
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'unsafe-none', // Disable COOP for Zoom
+          },
+          {
+            key: 'Cross-Origin-Resource-Policy',
+            value: 'cross-origin', // Allow cross-origin resources
+          },
+        ],
+      },
+    ];
   },
-}
+  
+  // Allow external scripts
+  transpilePackages: [],
+  
+  // Allow Zoom domains
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'source.zoom.us',
+      },
+      {
+        protocol: 'https',
+        hostname: 'zoom.us',
+      },
+    ],
+  },
+};
 
-export default nextConfig
+module.exports = nextConfig;

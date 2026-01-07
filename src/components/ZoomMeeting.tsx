@@ -18,9 +18,9 @@ interface ZoomMeetingProps {
   meetingNumber: string
   userName: string
   password?: string
-  role?: number // 0 = participant, 1 = host
-  autoJoin?: boolean // NEW: Auto join when meeting starts
-  onJoin?: () => void // NEW: Callback when joined
+  role?: number
+  autoJoin?: boolean
+  onJoin?: () => void
 }
 
 export interface ZoomMeetingHandle {
@@ -34,7 +34,7 @@ export interface ZoomMeetingHandle {
 const ZoomMeeting = forwardRef<ZoomMeetingHandle, ZoomMeetingProps>(({ 
   meetingNumber, 
   userName,
-  password = '123456',
+  password = '',
   role = 1,
   autoJoin = false,
   onJoin
@@ -42,12 +42,10 @@ const ZoomMeeting = forwardRef<ZoomMeetingHandle, ZoomMeetingProps>(({
   const [loading, setLoading] = useState(true)
   const [videoOn, setVideoOn] = useState(true)
   const [audioOn, setAudioOn] = useState(true)
-  const [time, setTime] = useState('00:00')
   const [zoomReady, setZoomReady] = useState(false)
   const [isJoined, setIsJoined] = useState(false)
   const [error, setError] = useState('')
   
-  // Use refs to track state that shouldn't trigger re-renders
   const isInitializedRef = useRef(false)
   const dependenciesLoadedRef = useRef(false)
   const joinAttemptedRef = useRef(false)
@@ -61,27 +59,17 @@ const ZoomMeeting = forwardRef<ZoomMeetingHandle, ZoomMeetingProps>(({
     isJoined: isJoined
   }));
 
-  // Timer
-  useEffect(() => {
-    if (!isJoined) return;
-    
-    const startTime = Date.now();
-    const timer = setInterval(() => {
-      const seconds = Math.floor((Date.now() - startTime) / 1000);
-      const mins = Math.floor(seconds / 60);
-      const secs = seconds % 60;
-      setTime(`${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`);
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [isJoined]);
-
-  // Load dependencies only once
+  // Load dependencies - FIXED SEQUENCE
   useEffect(() => {
     if (isInitializedRef.current) return;
 
-    const loadZoomDependencies = () => {
-      if (dependenciesLoadedRef.current) {
+    console.log('🔧 Starting dependency loading...');
+
+    const loadDependencies = () => {
+      // Check if already loaded
+      if (window.React && window.ReactDOM && window.Redux && window.ReduxThunk && window._) {
+        console.log('✅ Dependencies already loaded');
+        dependenciesLoadedRef.current = true;
         loadZoomSDK();
         return;
       }
@@ -89,71 +77,74 @@ const ZoomMeeting = forwardRef<ZoomMeetingHandle, ZoomMeetingProps>(({
       const dependencies = [
         { 
           id: 'react-js',
-          url: 'https://unpkg.com/react@17/umd/react.production.min.js',
-          check: () => typeof window.React !== 'undefined'
+          url: 'https://cdnjs.cloudflare.com/ajax/libs/react/17.0.2/umd/react.production.min.js',
+          global: 'React',
+          check: () => window.React
         },
         { 
           id: 'react-dom-js',
-          url: 'https://unpkg.com/react-dom@17/umd/react-dom.production.min.js',
-          check: () => typeof window.ReactDOM !== 'undefined'
+          url: 'https://cdnjs.cloudflare.com/ajax/libs/react-dom/17.0.2/umd/react-dom.production.min.js',
+          global: 'ReactDOM',
+          check: () => window.ReactDOM
         },
         { 
           id: 'redux-js',
-          url: 'https://unpkg.com/redux@4/dist/redux.min.js',
-          check: () => typeof window.Redux !== 'undefined'
+          url: 'https://cdnjs.cloudflare.com/ajax/libs/redux/4.1.2/redux.min.js',
+          global: 'Redux',
+          check: () => window.Redux
         },
         { 
           id: 'redux-thunk-js',
-          url: 'https://unpkg.com/redux-thunk@2/dist/redux-thunk.min.js',
-          check: () => typeof window.ReduxThunk !== 'undefined'
+          url: 'https://cdnjs.cloudflare.com/ajax/libs/redux-thunk/2.4.1/redux-thunk.min.js',
+          global: 'ReduxThunk',
+          check: () => window.ReduxThunk
         },
         { 
           id: 'lodash-js',
-          url: 'https://unpkg.com/lodash@4/lodash.min.js',
-          check: () => typeof window._ !== 'undefined'
+          url: 'https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js',
+          global: '_',
+          check: () => window._
         }
       ];
 
-      const missingDeps = dependencies.filter(dep => !dep.check());
-      
-      if (missingDeps.length === 0) {
-        console.log('All dependencies already loaded');
-        dependenciesLoadedRef.current = true;
-        loadZoomSDK();
-        return;
-      }
+      let loaded = 0;
+      const total = dependencies.length;
 
-      console.log(`Loading ${missingDeps.length} missing dependencies...`);
+      console.log(`📦 Loading ${total} dependencies...`);
 
-      let loadedCount = 0;
-      const totalToLoad = missingDeps.length;
-
-      missingDeps.forEach(dep => {
-        if (document.getElementById(dep.id)) {
-          loadedCount++;
-          if (loadedCount === totalToLoad) {
+      dependencies.forEach(dep => {
+        // Skip if already loaded
+        if (dep.check()) {
+          loaded++;
+          if (loaded === total) {
             dependenciesLoadedRef.current = true;
             loadZoomSDK();
           }
           return;
         }
 
+        // Skip if already loading
+        if (document.getElementById(dep.id)) {
+          return;
+        }
+
         const script = document.createElement('script');
         script.id = dep.id;
         script.src = dep.url;
-        script.async = false;
+        script.async = false; // IMPORTANT: Load in order
         script.onload = () => {
-          loadedCount++;
-          console.log(`Loaded: ${dep.id}`);
-          if (loadedCount === totalToLoad) {
+          console.log(`✅ ${dep.global} loaded`);
+          loaded++;
+          if (loaded === total) {
+            console.log('🎉 All dependencies loaded');
             dependenciesLoadedRef.current = true;
             loadZoomSDK();
           }
         };
         script.onerror = () => {
-          console.error(`Failed to load: ${dep.id}`);
-          loadedCount++;
-          if (loadedCount === totalToLoad) {
+          console.error(`❌ Failed to load ${dep.global}`);
+          loaded++;
+          if (loaded === total) {
             dependenciesLoadedRef.current = true;
             loadZoomSDK();
           }
@@ -163,61 +154,57 @@ const ZoomMeeting = forwardRef<ZoomMeetingHandle, ZoomMeetingProps>(({
     };
 
     const loadZoomSDK = () => {
+      if (!dependenciesLoadedRef.current) {
+        console.log('⏳ Waiting for dependencies...');
+        setTimeout(loadZoomSDK, 500);
+        return;
+      }
+
+      console.log('🚀 Loading Zoom SDK...');
+
+      // Add CSS first
+      if (!document.querySelector('link[href*="source.zoom.us/2.18.0/css"]')) {
+        const link1 = document.createElement('link');
+        link1.href = 'https://source.zoom.us/2.18.0/css/bootstrap.css';
+        link1.rel = 'stylesheet';
+        document.head.appendChild(link1);
+
+        const link2 = document.createElement('link');
+        link2.href = 'https://source.zoom.us/2.18.0/css/react-select.css';
+        link2.rel = 'stylesheet';
+        document.head.appendChild(link2);
+      }
+
+      // Load Zoom SDK
       if (window.ZoomMtg) {
-        console.log('Zoom SDK already loaded');
+        console.log('✅ Zoom SDK already loaded');
         setZoomReady(true);
         setLoading(false);
         isInitializedRef.current = true;
         return;
       }
 
-      if (document.getElementById('zoom-sdk')) {
-        console.log('Zoom SDK already loading...');
-        return;
-      }
-
-      console.log('Loading Zoom SDK...');
-      
       const script = document.createElement('script');
       script.id = 'zoom-sdk';
       script.src = 'https://source.zoom.us/zoom-meeting-2.18.0.min.js';
       script.async = true;
       script.onload = () => {
-        console.log('Zoom SDK loaded');
+        console.log('✅ Zoom SDK script loaded');
         
-        const checkZoom = setInterval(() => {
-          if (window.ZoomMtg && typeof window.ZoomMtg.setZoomJSLib === 'function') {
-            clearInterval(checkZoom);
-            console.log('ZoomMtg fully available');
+        // Wait for ZoomMtg to be fully available
+        const checkInterval = setInterval(() => {
+          if (window.ZoomMtg && typeof window.ZoomMtg.init === 'function') {
+            clearInterval(checkInterval);
+            console.log('🎉 ZoomMtg fully ready');
             setZoomReady(true);
             setLoading(false);
             isInitializedRef.current = true;
-            
-            if (!document.querySelector('link[href*="source.zoom.us/2.18.0/css"]')) {
-              const link1 = document.createElement('link');
-              link1.href = 'https://source.zoom.us/2.18.0/css/bootstrap.css';
-              link1.rel = 'stylesheet';
-              document.head.appendChild(link1);
-
-              const link2 = document.createElement('link');
-              link2.href = 'https://source.zoom.us/2.18.0/css/react-select.css';
-              link2.rel = 'stylesheet';
-              document.head.appendChild(link2);
-            }
           }
         }, 100);
-        
-        setTimeout(() => {
-          clearInterval(checkZoom);
-          if (!window.ZoomMtg) {
-            console.error('Zoom SDK timeout');
-            setError('Failed to load Zoom SDK (timeout)');
-            setLoading(false);
-          }
-        }, 10000);
       };
-      script.onerror = () => {
-        console.error('Failed to load Zoom SDK script');
+      
+      script.onerror = (err) => {
+        console.error('❌ Failed to load Zoom SDK', err);
         setError('Failed to load Zoom SDK');
         setLoading(false);
       };
@@ -225,10 +212,10 @@ const ZoomMeeting = forwardRef<ZoomMeetingHandle, ZoomMeetingProps>(({
       document.head.appendChild(script);
     };
 
-    loadZoomDependencies();
+    loadDependencies();
   }, []);
 
-  // Auto-join when zoom is ready and autoJoin is true
+  // Auto-join
   useEffect(() => {
     if (autoJoin && zoomReady && !isJoined && !loading && !joinAttemptedRef.current) {
       console.log('Auto-joining meeting...');
@@ -237,16 +224,15 @@ const ZoomMeeting = forwardRef<ZoomMeetingHandle, ZoomMeetingProps>(({
   }, [zoomReady, autoJoin, isJoined, loading]);
 
   const joinMeeting = async () => {
-    console.log('=== JOIN MEETING FUNCTION STARTED ===');
+    console.log('=== JOIN MEETING ===');
     
-    if (!window.ZoomMtg || !window.ZoomMtg.setZoomJSLib) {
-      console.error('Zoom SDK not properly loaded');
-      setError('Zoom SDK not properly loaded');
+    if (!window.ZoomMtg) {
+      setError('Zoom SDK not ready');
       return;
     }
 
     if (joinAttemptedRef.current) {
-      console.log('Join already attempted, skipping');
+      console.log('Join already attempted');
       return;
     }
 
@@ -255,88 +241,65 @@ const ZoomMeeting = forwardRef<ZoomMeetingHandle, ZoomMeetingProps>(({
       setLoading(true);
       setError('');
       
-      console.log('1. Setting up Zoom environment...');
-      
       // Clear previous meeting
       try {
         const root = document.getElementById('zmmtg-root');
-        if (root) {
-          root.innerHTML = '';
-        }
-      } catch (e) {
-        console.log('Cleanup error:', e);
-      }
+        if (root) root.innerHTML = '';
+      } catch (e) {}
 
-      // Initialize Zoom
-      window.ZoomMtg.setZoomJSLib('https://source.zoom.us/2.18.0/lib', '/av');
-      window.ZoomMtg.preLoadWasm();
-      window.ZoomMtg.prepareWebSDK();
-      
-      console.log('2. Zoom setup done, fetching signature...');
+      console.log('📞 Getting signature for meeting:', meetingNumber);
       
       // Get signature
       const signatureResponse = await fetch('/api/zoom/signature', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          meetingNumber,
-          role: role.toString()
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ meetingNumber, role: role.toString() }),
       });
 
-      console.log('3. Signature response status:', signatureResponse.status);
-      
       if (!signatureResponse.ok) {
-        throw new Error(`HTTP error! status: ${signatureResponse.status}`);
+        throw new Error(`HTTP error: ${signatureResponse.status}`);
       }
 
       const signatureData = await signatureResponse.json();
       
       if (!signatureData.success) {
-        console.error('4. Signature error:', signatureData.error);
         throw new Error(signatureData.error || 'Failed to get signature');
       }
 
-      console.log('5. Got signature:', {
-        signatureLength: signatureData.signature?.length,
-        meetingNumber: signatureData.meetingNumber,
-        role: signatureData.role
-      });
-
-      // Wait a bit
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
+      console.log('✅ Signature received');
+      
+      // Initialize Zoom
+      window.ZoomMtg.setZoomJSLib('https://source.zoom.us/2.18.0/lib', '/av');
+      window.ZoomMtg.preLoadWasm();
+      window.ZoomMtg.prepareWebSDK();
+      
       window.ZoomMtg.init({
-        leaveUrl: window.location.origin,
+        leaveUrl: window.location.origin + '/',
         isSupportAV: true,
         success: () => {
-          console.log('6. Zoom init success! Now joining...');
+          console.log('✅ Zoom init success! Joining...');
 
           window.ZoomMtg.join({
             signature: signatureData.signature,
+            sdkKey: 'dFLvsjSbTa6wBaF1w6Evbw', // 🔥 HARDCODED SDK KEY
             meetingNumber: signatureData.meetingNumber,
             userName: userName,
             passWord: password,
             success: (success: any) => {
-              console.log('✅ JOIN SUCCESS!', success);
+              console.log('🎉 ✅ JOIN SUCCESS!', success);
               setIsJoined(true);
               setLoading(false);
-              onJoin?.(); // Call the callback
-
-              // Try to start video/audio after join
-              setTimeout(() => {
-                try {
-                  window.ZoomMtg.unmute({ mute: false });
-                } catch (e) { console.log('Unmute failed') }
-              }, 2000);
+              onJoin?.();
+              
+              // Show success alert
+              alert('✅ Meeting joined successfully! Check your audio.');
             },
             error: (error: any) => {
-              console.error('❌ JOIN ERROR:', error);
-              setError(`Join failed: ${error.errorMessage || error.errorCode || JSON.stringify(error)}`);
+              console.error('❌ Join error:', error);
+              setError(`Join failed: ${error.errorMessage || error.errorCode || 'Unknown error'}`);
               setLoading(false);
               joinAttemptedRef.current = false;
+              alert('❌ Join failed: ' + JSON.stringify(error));
             }
           });
         },
@@ -348,17 +311,8 @@ const ZoomMeeting = forwardRef<ZoomMeetingHandle, ZoomMeetingProps>(({
         }
       });
 
-      // Global error handler
-      window.addEventListener('error', (e) => {
-        console.error('Global Zoom error:', e);
-        if (e.message?.includes('Zoom') || e.message?.includes('meeting')) {
-          setError(`Zoom error: ${e.message}`);
-        }
-      });
-
     } catch (err: any) {
-      console.error('11. Catch block error:', err);
-      console.error('Error stack:', err.stack);
+      console.error('❌ Catch error:', err);
       setError(err.message || 'Failed to join meeting');
       setLoading(false);
       joinAttemptedRef.current = false;
@@ -411,21 +365,18 @@ const ZoomMeeting = forwardRef<ZoomMeetingHandle, ZoomMeetingProps>(({
 
   if (loading && !zoomReady) {
     return (
-      <div className="w-full h-full bg-black rounded-xl flex flex-col items-center justify-center">
+      <div className="w-full h-full bg-black flex flex-col items-center justify-center">
         <FaSpinner className="h-12 w-12 text-blue-500 animate-spin mb-4" />
-        <p className="text-white text-lg">Loading Zoom Meeting...</p>
+        <p className="text-white text-lg">Loading Zoom...</p>
         <p className="text-gray-400 text-sm mt-2">Meeting ID: {meetingNumber}</p>
-        <p className="text-gray-500 text-xs mt-1">This may take a few seconds</p>
       </div>
     );
   }
 
   return (
     <div className="w-full h-full bg-black rounded-xl overflow-hidden relative">
-      {/* Zoom Meeting Container */}
       <div id="zmmtg-root" className="w-full h-full"></div>
       
-      {/* Status Overlay - Only show if NOT joined */}
       {!isJoined && !autoJoin && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90">
           <div className="text-center p-8 rounded-xl bg-black/70 max-w-md">
@@ -434,43 +385,22 @@ const ZoomMeeting = forwardRef<ZoomMeetingHandle, ZoomMeetingProps>(({
             </div>
             <h3 className="text-2xl font-bold text-white mb-2">{userName}</h3>
             <p className="text-gray-300">Meeting ID: {meetingNumber}</p>
-            <p className="text-gray-400 mt-1">Role: {role === 1 ? 'Host' : 'Participant'}</p>
             
             <div className="mt-6">
               {error && (
                 <div className="bg-red-900/50 text-red-300 p-3 rounded-lg mb-4">
                   <p className="font-semibold">Error:</p>
                   <p>{error}</p>
-                  <button
-                    onClick={() => setError('')}
-                    className="text-xs underline mt-1"
-                  >
-                    Dismiss
-                  </button>
                 </div>
               )}
-              
-              <div className="inline-flex items-center bg-green-900/30 px-4 py-2 rounded-full mb-4">
-                <div className="w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></div>
-                <span className="text-green-400 font-medium">
-                  Ready to Join
-                </span>
-              </div>
               
               {zoomReady && !loading && (
                 <button
                   onClick={joinMeeting}
-                  className="block w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-6 rounded-lg font-bold hover:opacity-90 transition-all duration-200 active:scale-95"
+                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-6 rounded-lg font-bold hover:opacity-90"
                   disabled={loading}
                 >
-                  {loading ? (
-                    <>
-                      <FaSpinner className="animate-spin inline mr-2" />
-                      Joining...
-                    </>
-                  ) : (
-                    'Join Meeting Now'
-                  )}
+                  {loading ? 'Joining...' : 'Join Meeting'}
                 </button>
               )}
             </div>
@@ -478,12 +408,11 @@ const ZoomMeeting = forwardRef<ZoomMeetingHandle, ZoomMeetingProps>(({
         </div>
       )}
 
-      {/* Controls - Only show when joined */}
       {isJoined && (
         <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center space-x-4 bg-gray-900/80 backdrop-blur-sm px-6 py-3 rounded-full z-20">
           <button
             onClick={toggleAudio}
-            className={`p-3 rounded-full ${audioOn ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'} transition-colors`}
+            className={`p-3 rounded-full ${audioOn ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'}`}
             title={audioOn ? 'Mute Audio' : 'Unmute Audio'}
           >
             {audioOn ? (
@@ -495,7 +424,7 @@ const ZoomMeeting = forwardRef<ZoomMeetingHandle, ZoomMeetingProps>(({
           
           <button
             onClick={toggleVideo}
-            className={`p-3 rounded-full ${videoOn ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'} transition-colors`}
+            className={`p-3 rounded-full ${videoOn ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'}`}
             title={videoOn ? 'Stop Video' : 'Start Video'}
           >
             {videoOn ? (
@@ -507,41 +436,26 @@ const ZoomMeeting = forwardRef<ZoomMeetingHandle, ZoomMeetingProps>(({
           
           <button
             onClick={leaveMeeting}
-            className="px-6 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition-colors"
+            className="px-6 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700"
           >
-            Leave Meeting
+            Leave
           </button>
         </div>
       )}
 
-      {/* Status Badge */}
       <div className="absolute top-4 left-4 z-10">
         <div className={`flex items-center px-4 py-2 rounded-full ${isJoined ? 'bg-green-900/80' : 'bg-blue-900/80'}`}>
           <div className={`w-3 h-3 rounded-full mr-2 ${isJoined ? 'bg-green-500 animate-pulse' : 'bg-blue-500'}`}></div>
           <span className="text-white text-sm">
-            {isJoined ? 'Live' : zoomReady ? 'Ready' : 'Loading'}
+            {isJoined ? 'Live' : 'Ready'}
           </span>
         </div>
       </div>
 
-      {/* Timer */}
-      {isJoined && (
-        <div className="absolute top-4 right-4 z-10 bg-black/50 px-3 py-2 rounded-full">
-          <span className="text-white text-sm font-mono">{time}</span>
-        </div>
-      )}
-
-      {/* Error Message */}
       {error && isJoined && (
         <div className="absolute top-12 right-4 bg-red-900/80 text-white p-3 rounded-lg max-w-xs">
-          <p className="text-sm font-semibold">Meeting Error:</p>
+          <p className="text-sm font-semibold">Error:</p>
           <p className="text-sm">{error}</p>
-          <button
-            onClick={() => setError('')}
-            className="text-xs underline mt-1"
-          >
-            Dismiss
-          </button>
         </div>
       )}
     </div>
